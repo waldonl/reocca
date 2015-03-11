@@ -3,6 +3,7 @@ package com.waldoauf.reocca
 // the service, actors and paths
 
 import akka.actor.Actor
+import spray.http.HttpMethods
 
 import spray.util._
 import spray.http.HttpHeaders.{`Content-Type`, Location}
@@ -44,12 +45,14 @@ trait ApiService extends HttpService {
   import JsonConversions._
 
   def paths(methName: String, pathObjects: JValue): List[List[JField]] = {
-    println(s"paths for ${methName} : ${pathObjects}")
     for {
       JObject(child) <- pathObjects
       JField("method", JString(meth)) <- child
       if meth.equals(methName)
-    } yield child
+    } yield {
+      println(s"created path for method ${methName} to ${child}")
+      child
+    }
   }
 
   val initCache =
@@ -89,7 +92,9 @@ trait ApiService extends HttpService {
   def buildRoute(cacheMap : HashMap[String, JValue]) = {
     cacheMap.get("init") match {
       case None => complete (JNothing)
-      case Some (cache) => getterBuilder("init", paths("get", cache) )
+      case Some (cache) =>
+        routePerMethodBuilder("init", "get", paths("get", cache) ) ~
+        routePerMethodBuilder("init", "put",  paths("put", cache) )
     }
   }
 
@@ -97,7 +102,7 @@ trait ApiService extends HttpService {
 //  val posts = paths("post", parse(initCache))
   val route = buildRoute(cacheMap)
 
-  def getterBuilder(cacheName: String, gets: List[List[JField]]) : Route = {
+  def routePerMethodBuilder(cacheName: String, methName : String, gets: List[List[JField]]) : Route = {
     def mkPath(cacheEntry: List[JField]) : Route = {
       var name = ""
       for {
@@ -115,18 +120,24 @@ trait ApiService extends HttpService {
       }
     }
 
+    def buildMethod(methName: String) : Directive0 = methName match {
+      case "put" => method(HttpMethods.PUT)
+      case _ => method(HttpMethods.GET)
+    }
+
     def recurGets(gets: List[List[JField]], acc : Option[Route]) : Route = {
       if (gets.isEmpty) {println(s"route complete ${acc.get}")
-        acc.getOrElse(complete("invalid cache"))} else {
+        acc.getOrElse(complete("invalid cache"))
+      } else {
         val innerRoute = mkPath(gets.head)
         val result = acc match {
           case None => new Some(innerRoute)
           case Some(outer: Route) => new Some(outer ~ innerRoute)
         }
-        recurGets(gets.tail, result)
+        {recurGets(gets.tail, result)}
       }
     }
-    recurGets(gets,  None : Option[Route] )
+    buildMethod(methName) (recurGets(gets,  None : Option[Route]))
   }
 
   def build(json : JValue) : Route = {
