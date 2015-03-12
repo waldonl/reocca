@@ -1,2 +1,2 @@
-# reocca
-Recorder / replayer of (initially) rest responses, on top of Spray
+# REOCCA
+(Load) Test Recorder / Replayer of (initially) REST Responses, in Scala, on top of Spray

@@ -29,6 +29,8 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with ApiServic
 
     "Reocca, with the temporary init cache, " should {"""return a response including "put to work" for PUT requests to path 'todos'""" in {
       Put("/init/todos") ~> buildRoute(cacheMap) ~> check {entity.asString.contains("put to work")}}}
+    "Reocca, with the temporary init cache, " should {"""return a response including "id" for POST requests to path 'todos'""" in {
+      Post("/init/todos") ~> buildRoute(cacheMap) ~> check {entity.asString.contains("id")}}}
     "Reocca, with the temporary init cache, " should {"""leave get requests to other paths unhandled""" in {
       Get("/unknown") ~> buildRoute(cacheMap) ~> check {handled must beFalse}}}
 }

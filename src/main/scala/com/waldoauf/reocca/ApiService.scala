@@ -94,7 +94,8 @@ trait ApiService extends HttpService {
       case None => complete (JNothing)
       case Some (cache) =>
         routePerMethodBuilder("init", "get", paths("get", cache) ) ~
-        routePerMethodBuilder("init", "put",  paths("put", cache) )
+        routePerMethodBuilder("init", "put",  paths("put", cache) ) ~
+        routePerMethodBuilder("init", "post",  paths("post", cache) )
     }
   }
 
@@ -121,6 +122,7 @@ trait ApiService extends HttpService {
     }
 
     def buildMethod(methName: String) : Directive0 = methName match {
+      case "post" => method(HttpMethods.POST)
       case "put" => method(HttpMethods.PUT)
       case _ => method(HttpMethods.GET)
     }
