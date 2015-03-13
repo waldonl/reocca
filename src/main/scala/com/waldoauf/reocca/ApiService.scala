@@ -3,7 +3,7 @@ package com.waldoauf.reocca
 // the service, actors and paths
 
 import akka.actor.Actor
-import spray.http.HttpMethods
+import spray.http.{StatusCodes, HttpMethods}
 
 import spray.util._
 import spray.http.HttpHeaders.{`Content-Type`, Location}
@@ -40,21 +40,6 @@ trait ApiService extends HttpService {
   implicit val log = LoggingContext.fromActorRefFactory
 
   val cacheMap = HashMap.empty[String, JValue]
-  var counter = 0L
-
-  import JsonConversions._
-
-  def paths(methName: String, pathObjects: JValue): List[List[JField]] = {
-    for {
-      JObject(child) <- pathObjects
-      JField("method", JString(meth)) <- child
-      if meth.equals(methName)
-    } yield {
-      println(s"created path for method ${methName} to ${child}")
-      child
-    }
-  }
-
   val initCache =
     """[
            {   "name" : "todos",
@@ -89,32 +74,54 @@ trait ApiService extends HttpService {
   val initCacheObj = parse(initCache)
   cacheMap.put("init", initCacheObj)
 
-  def buildRoute(cacheMap : HashMap[String, JValue]) = {
-    cacheMap.get("init") match {
-      case None => complete (JNothing)
-      case Some (cache) =>
-        routePerMethodBuilder("init", "get", paths("get", cache) ) ~
-        routePerMethodBuilder("init", "put",  paths("put", cache) ) ~
-        routePerMethodBuilder("init", "post",  paths("post", cache) )
+  import JsonConversions._
+
+  var route = buildRoute(cacheMap)
+
+  def buildRoute(cacheMap : HashMap[String, JValue]) : Route = {
+    var result : Option[Route] = None
+    for {
+      cacheName <- cacheMap.keys
+    } {
+        cacheMap.get(cacheName) match {
+          case None => None
+          case Some (cache) => {
+            val nextRoute = routePerMethodBuilder(cacheName, "get", filterPaths("get", cache) ) ~
+              routePerMethodBuilder(cacheName, "put",  filterPaths("put", cache) ) ~
+              routePerMethodBuilder(cacheName, "delete",  filterPaths("delete", cache) ) ~
+              routePerMethodBuilder(cacheName, "post",  filterPaths("post", cache) )
+            result match {
+              case None => result = Some(nextRoute)
+              case _ => result = Some(nextRoute ~ result.get)
+            }
+          }
+        }
+    }
+    result.getOrElse(_ => Unit)
+  }
+  def filterPaths(methName: String, pathObjects: JValue): List[List[JField]] = {
+    for {
+      JObject(child) <- pathObjects
+      JField("method", JString(meth)) <- child
+      if meth.equals(methName)
+    } yield {
+      println(s"created path for method ${methName} to ${child}")
+      child
     }
   }
 
-//  val gets = paths("get", parse(initCache))
-//  val posts = paths("post", parse(initCache))
-  val route = buildRoute(cacheMap)
-
-  def routePerMethodBuilder(cacheName: String, methName : String, gets: List[List[JField]]) : Route = {
+  def routePerMethodBuilder(cacheName: String, methName : String, pathList: List[List[JField]]) : Route = {
     def mkPath(cacheEntry: List[JField]) : Route = {
       var name = ""
       for {
         JField("name", JString(jname)) <- cacheEntry
       } name = jname
-      var response = parse("[]")
+      var response : JValue = null
       for {
         JField("response", jresponse) <- cacheEntry
       } response = jresponse
       println(s"creating route for path ${cacheName}/${name} and response ${response}")
-      pathPrefix("init" / name){
+      pathPrefix(cacheName / name){
         pathEnd {
           complete(response)
         }
@@ -123,28 +130,42 @@ trait ApiService extends HttpService {
 
     def buildMethod(methName: String) : Directive0 = methName match {
       case "post" => method(HttpMethods.POST)
+      case "delete" => method(HttpMethods.DELETE)
       case "put" => method(HttpMethods.PUT)
       case _ => method(HttpMethods.GET)
     }
 
-    def recurGets(gets: List[List[JField]], acc : Option[Route]) : Route = {
-      if (gets.isEmpty) {println(s"route complete ${acc.get}")
-        acc.getOrElse(complete("invalid cache"))
+    def transformPaths(pathList: List[List[JField]], acc : Option[Route]) : Route = {
+      if (pathList.isEmpty) acc match {
+        case None => _ => Unit
+        case Some(route) => route
       } else {
-        val innerRoute = mkPath(gets.head)
+        val innerRoute = mkPath(pathList.head)
         val result = acc match {
           case None => new Some(innerRoute)
           case Some(outer: Route) => new Some(outer ~ innerRoute)
         }
-        {recurGets(gets.tail, result)}
+        {transformPaths(pathList.tail, result)}
       }
     }
-    buildMethod(methName) (recurGets(gets,  None : Option[Route]))
+
+    //
+    buildMethod(methName)(transformPaths(pathList, None: Option[Route])) ~
+      path("REOCCA" / Rest) {
+        pathRest => {
+          put {
+            entity(as[JValue]) {
+              json => complete {
+                println(s"receiving cache named ${pathRest}")
+                cacheMap.put(pathRest, json)
+                println(s"cacheMap ${cacheMap}")
+                route = buildRoute(cacheMap)
+                complete (StatusCodes.OK, s"cache named '${pathRest}' has been added")
+              }
+            }
+          }
+        }
+      }
+
   }
-
-  def build(json : JValue) : Route = {
-    val resp = (json \\ "key").values.toString
-    println("resp: " + resp)
-    get{_.complete(resp)} }
-
 }

@@ -1,2 +1,3 @@
 # REOCCA
-(Load) Test Recorder / Replayer of (initially) REST Responses, in Scala, on top of Spray
+Test/loadtest recorder/replayer.
+Built on top of spray, written in scala.
