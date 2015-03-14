@@ -79,6 +79,7 @@ trait ApiService extends HttpService {
   var route = buildRoute(cacheMap)
 
   def buildRoute(cacheMap : HashMap[String, JValue]) : Route = {
+    import JsonConversions._
     var result : Option[Route] = None
     for {
       cacheName <- cacheMap.keys
@@ -86,10 +87,10 @@ trait ApiService extends HttpService {
         cacheMap.get(cacheName) match {
           case None => None
           case Some (cache) => {
-            val nextRoute = routePerMethodBuilder(cacheName, "get", filterPaths("get", cache) ) ~
-              routePerMethodBuilder(cacheName, "put",  filterPaths("put", cache) ) ~
-              routePerMethodBuilder(cacheName, "delete",  filterPaths("delete", cache) ) ~
-              routePerMethodBuilder(cacheName, "post",  filterPaths("post", cache) )
+            val nextRoute = routePerMethodBuilder(cacheName, "get", filterPathsByMethodName("get", cache) ) ~
+              routePerMethodBuilder(cacheName, "put",  filterPathsByMethodName("put", cache) ) ~
+              routePerMethodBuilder(cacheName, "delete",  filterPathsByMethodName("delete", cache) ) ~
+              routePerMethodBuilder(cacheName, "post",  filterPathsByMethodName("post", cache) )
             result match {
               case None => result = Some(nextRoute)
               case _ => result = Some(nextRoute ~ result.get)
@@ -97,9 +98,27 @@ trait ApiService extends HttpService {
           }
         }
     }
-    result.getOrElse(_ => Unit)
+    result.getOrElse((_ => Unit): Route) ~
+      path("REOCCA" / Rest) {
+        pathRest => {
+          put {
+            entity(as[JValue]) {
+              json => complete {
+                println(s"receiving cache named ${pathRest}")
+                cacheMap.clear
+                println(s"emptied cacheMap: ${cacheMap}")
+                cacheMap.put(pathRest, json)
+                println(s"cacheMap ${cacheMap}")
+                route = buildRoute(cacheMap)
+                println(s"built ${pathRest}: ${route}")
+                JNull
+              }
+            }
+          }
+        }
+      } ~ complete(StatusCodes.NotFound, cacheMap)
   }
-  def filterPaths(methName: String, pathObjects: JValue): List[List[JField]] = {
+  def filterPathsByMethodName(methName: String, pathObjects: JValue): List[List[JField]] = {
     for {
       JObject(child) <- pathObjects
       JField("method", JString(meth)) <- child
@@ -111,7 +130,7 @@ trait ApiService extends HttpService {
   }
 
   def routePerMethodBuilder(cacheName: String, methName : String, pathList: List[List[JField]]) : Route = {
-    def mkPath(cacheEntry: List[JField]) : Route = {
+    def buildPath(cacheEntry: List[JField]) : Route = {
       var name = ""
       for {
         JField("name", JString(jname)) <- cacheEntry
@@ -135,37 +154,22 @@ trait ApiService extends HttpService {
       case _ => method(HttpMethods.GET)
     }
 
-    def transformPaths(pathList: List[List[JField]], acc : Option[Route]) : Route = {
+    def connectPaths(pathList: List[List[JField]], acc : Option[Route]) : Route = {
       if (pathList.isEmpty) acc match {
-        case None => _ => Unit
+        case None => complete("nopathinbuildpaths")
         case Some(route) => route
       } else {
-        val innerRoute = mkPath(pathList.head)
+        val innerRoute = buildPath(pathList.head)
         val result = acc match {
           case None => new Some(innerRoute)
           case Some(outer: Route) => new Some(outer ~ innerRoute)
         }
-        {transformPaths(pathList.tail, result)}
+        {connectPaths(pathList.tail, result)}
       }
     }
 
     //
-    buildMethod(methName)(transformPaths(pathList, None: Option[Route])) ~
-      path("REOCCA" / Rest) {
-        pathRest => {
-          put {
-            entity(as[JValue]) {
-              json => complete {
-                println(s"receiving cache named ${pathRest}")
-                cacheMap.put(pathRest, json)
-                println(s"cacheMap ${cacheMap}")
-                route = buildRoute(cacheMap)
-                complete (StatusCodes.OK, s"cache named '${pathRest}' has been added")
-              }
-            }
-          }
-        }
-      }
+    buildMethod(methName)(connectPaths(pathList, None: Option[Route]))
 
   }
 }
