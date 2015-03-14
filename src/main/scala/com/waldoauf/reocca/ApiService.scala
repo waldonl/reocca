@@ -105,8 +105,6 @@ trait ApiService extends HttpService {
             entity(as[JValue]) {
               json => complete {
                 println(s"receiving cache named ${pathRest}")
-                cacheMap.clear
-                println(s"emptied cacheMap: ${cacheMap}")
                 cacheMap.put(pathRest, json)
                 println(s"cacheMap ${cacheMap}")
                 route = buildRoute(cacheMap)
