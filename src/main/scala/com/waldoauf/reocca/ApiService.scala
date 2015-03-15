@@ -2,8 +2,10 @@ package com.waldoauf.reocca
 
 // the service, actors and paths
 
-import akka.actor.Actor
-import spray.http.{StatusCodes, HttpMethods}
+import akka.actor._
+import akka.io.IO
+import spray.can.Http
+import spray.http.{HttpRequest, StatusCodes, HttpMethods}
 
 import spray.util._
 import spray.http.HttpHeaders.{`Content-Type`, Location}
@@ -21,16 +23,40 @@ object JsonConversions extends Json4sJacksonSupport {
 
 import scala.collection.mutable.HashMap
 
-class ApiServiceActor extends Actor with ApiService {
+class ApiServiceActor(interface : String, port : Int) extends Actor with ApiService {
 
   // the HttpService trait defines only one abstract member, which
   // connects the services environment to the enclosing actor or test
   def actorRefFactory = context
+  implicit val system = ActorSystem()
+  var routeCount = 0
+  def newRouteRunner(route: Route) = {
+    routeCount = routeCount + 1
+    context.actorOf(Props(classOf[RouteRunner], route), s"routeRunner${routeCount}")
+  }
 
-  // this actor only runs our route, but you could add
-  // other things here, like request stream processing,
-  // timeout handling or alternative handler registration
-  def receive = runRoute(route)
+  def receive = {
+    case (cacheName: String, jCache : JValue) => {
+      // start a new HTTP server with our service actor as the handler
+      var route : Route = (_ => Unit)
+      if (cacheName != "init") {
+        println(s"creating new route for ${cacheName}")
+        route = extendRouteWithCache(cacheName, jCache, context.self)
+        println("unbind")
+        IO(Http) ! Http.Unbind
+      } else {
+        route = buildRoute(cacheMap, context.self)
+      }
+      println("about to bind")
+      IO(Http) ! Http.Bind(newRouteRunner(route), interface, port)
+    }
+  }
+}
+
+class RouteRunner(routeToRun : Route) extends Actor with HttpService {
+  def actorRefFactory: ActorRefFactory = context
+
+  def receive = runRoute(routeToRun)
 }
 
 // Routing embedded in the actor
@@ -76,9 +102,14 @@ trait ApiService extends HttpService {
 
   import JsonConversions._
 
-  var route = buildRoute(cacheMap)
+  var route = buildRoute(cacheMap, null)
 
-  def buildRoute(cacheMap : HashMap[String, JValue]) : Route = {
+  def extendRouteWithCache(cacheName: String, jCache : JValue, routeManager: ActorRef): Route = {
+    cacheMap.put(cacheName, jCache)
+    buildRoute(cacheMap, routeManager)
+  }
+
+  def buildRoute(cacheMap : HashMap[String, JValue], routeManager : ActorRef) : Route = {
     import JsonConversions._
     var result : Option[Route] = None
     for {
@@ -105,10 +136,12 @@ trait ApiService extends HttpService {
             entity(as[JValue]) {
               json => complete {
                 println(s"receiving cache named ${pathRest}")
-                cacheMap.put(pathRest, json)
-                println(s"cacheMap ${cacheMap}")
-                route = buildRoute(cacheMap)
-                println(s"built ${pathRest}: ${route}")
+                routeManager ! (pathRest, json)
+
+//                cacheMap.put(pathRest, json)
+//                println(s"cacheMap ${cacheMap}")
+//                route = buildRoute(cacheMap, routeManager)
+                println(s"adding  ${pathRest} to: ${route}")
                 JNull
               }
             }
@@ -171,3 +204,4 @@ trait ApiService extends HttpService {
 
   }
 }
+

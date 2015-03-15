@@ -4,6 +4,7 @@ package com.waldoauf.reocca.route
  * Created by klm10896 on 2/25/2015.
  */
 
+import akka.actor.Props
 import com.waldoauf.reocca.{JsonConversions, ApiService}
 import org.json4s.JsonAST.JValue
 import org.json4s._
@@ -16,21 +17,23 @@ import spray.testkit.Specs2RouteTest
 import JsonConversions._
 
 
-class RouteBuilderSpec extends Specification with Specs2RouteTest with ApiService with HttpService {
+class RouteBuilderSpec extends Specification with Specs2RouteTest with ApiService {
   // connects the DSL to the test ActorSystem
   implicit def actorRefFactory = system
 
+  var initRoute = buildRoute(cacheMap, null)
+
 
     "\nReocca, with the temporary init cache, " should {"""return a response including "get this working" for GET requests to path 'todos'""" in {
-      Get("/init/todos") ~> buildRoute(cacheMap) ~> check {entity.asString.contains("get this working")}}}
+      Get("/init/todos") ~> initRoute ~> check {entity.asString.contains("get this working")}}}
 
     "Reocca, with the temporary init cache, " should {"""return a response including "get this working too" for GET requests to path 'todos'""" in {
-      Get("/init/tadas") ~> buildRoute(cacheMap) ~> check {entity.asString.contains("get this working too")}}}
+      Get("/init/tadas") ~> initRoute ~> check {entity.asString.contains("get this working too")}}}
 
     "Reocca, with the temporary init cache, " should {"""return a response including "put to work" for PUT requests to path 'todos'""" in {
-      Put("/init/todos") ~> buildRoute(cacheMap) ~> check {entity.asString.contains("put to work")}}}
+      Put("/init/todos") ~> initRoute ~> check {entity.asString.contains("put to work")}}}
     "Reocca, with the temporary init cache, " should {"""return a response including "id" for POST requests to path 'todos'""" in {
-      Post("/init/todos") ~> buildRoute(cacheMap) ~> check {entity.asString.contains("id")}}}
+      Post("/init/todos") ~> initRoute ~> check {entity.asString.contains("id")}}}
     "Reocca, with the temporary init cache, " should {"""handle get requests to other paths in a default way""" in {
-      Get("/unknown") ~> buildRoute(cacheMap) ~> check {handled must beTrue}}}
+      Get("/unknown") ~> initRoute ~> check {handled must beTrue}}}
 }

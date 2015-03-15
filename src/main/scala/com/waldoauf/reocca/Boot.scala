@@ -17,24 +17,12 @@ import scala.io.Source
 object Boot extends App {
   implicit val system = ActorSystem()
 
-  // create and start our service actor
-  val service = system.actorOf(Props[ApiServiceActor], "api")
 
   // fetch configuration from resources/application.config
   val interface = system.settings.config getString "service.interface"
   val port      = system.settings.config getInt    "service.port"
-//  val cacheconf = system.settings.config getString "service.file"
-//  println("cacheconf: " + cacheconf)
-//
-//  val cacheconfJson : JValue = {
-//    val cacheStr =
-//    if (!cacheconf.contentEquals("nofile")) {
-//      Source.fromFile(cacheconf).mkString
-//    } else "[]"
-//    JsonMethods.parse(cacheStr)
-//  }
-//  println("found file: " + cacheconfJson)
+  // create and start our service actor
+  val service = system.actorOf(Props(classOf[ApiServiceActor], interface, port), "api")
+  service ! ("init", JNull)
 
-  // start a new HTTP server with our service actor as the handler
-  IO(Http) ! Http.Bind(service, interface, port)
 }
