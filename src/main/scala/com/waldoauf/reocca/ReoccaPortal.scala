@@ -23,32 +23,46 @@ object JsonConversions extends Json4sJacksonSupport {
 
 import scala.collection.mutable.HashMap
 
-class ApiServiceActor(interface : String, port : Int) extends Actor with ApiService {
+class ReoccaPortalActor(interface : String, port : Int) extends Actor with ReoccaPortal {
 
   // the HttpService trait defines only one abstract member, which
   // connects the services environment to the enclosing actor or test
   def actorRefFactory = context
   implicit val system = ActorSystem()
   var routeCount = 0
+  var bound = false
   def newRouteRunner(route: Route) = {
     routeCount = routeCount + 1
     context.actorOf(Props(classOf[RouteRunner], route), s"routeRunner${routeCount}")
   }
 
+  var routeReceived : Route = (_ => Unit)
+  var httpListener : ActorRef = null
   def receive = {
     case (cacheName: String, jCache : JValue) => {
-      // start a new HTTP server with our service actor as the handler
-      var route : Route = (_ => Unit)
-      if (cacheName != "init") {
-        println(s"creating new route for ${cacheName}")
-        route = extendRouteWithCache(cacheName, jCache, context.self)
+      println(s"creating new route for ${cacheName}")
+      if (cacheName == "init")
+        routeReceived = buildRoute(cacheMap, context.self)
+      else
+        routeReceived = extendRouteWithCache(cacheName, jCache, context.self)
+      // start a new HTTP server with our reocca portal actor as the handler
+      if (bound) {
         println("unbind")
-        IO(Http) ! Http.Unbind
+        httpListener ! Http.Unbind
       } else {
-        route = buildRoute(cacheMap, context.self)
+          println("about to bind")
+          IO(Http) ! Http.Bind(newRouteRunner(routeReceived), interface, port)
       }
-      println("about to bind")
-      IO(Http) ! Http.Bind(newRouteRunner(route), interface, port)
+    }
+    case Http.Unbound => {
+      bound = false
+      println("unbound")
+      IO(Http) ! Http.Bind(newRouteRunner(routeReceived), interface, port)
+    }
+    case Http.Bound => {
+      bound = true
+      println("bound")
+      httpListener = context.sender()
     }
   }
 }
@@ -60,7 +74,7 @@ class RouteRunner(routeToRun : Route) extends Actor with HttpService {
 }
 
 // Routing embedded in the actor
-trait ApiService extends HttpService {
+trait ReoccaPortal extends HttpService {
 
   // default logging
   implicit val log = LoggingContext.fromActorRefFactory

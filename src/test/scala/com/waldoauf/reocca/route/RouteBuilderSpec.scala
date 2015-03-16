@@ -5,7 +5,7 @@ package com.waldoauf.reocca.route
  */
 
 import akka.actor.Props
-import com.waldoauf.reocca.{JsonConversions, ApiService}
+import com.waldoauf.reocca.{JsonConversions, ReoccaPortal}
 import org.json4s.JsonAST.JValue
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -17,7 +17,7 @@ import spray.testkit.Specs2RouteTest
 import JsonConversions._
 
 
-class RouteBuilderSpec extends Specification with Specs2RouteTest with ApiService {
+class RouteBuilderSpec extends Specification with Specs2RouteTest with ReoccaPortal {
   // connects the DSL to the test ActorSystem
   implicit def actorRefFactory = system
 
