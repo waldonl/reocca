@@ -22,7 +22,7 @@ object Boot extends App {
   val interface = system.settings.config getString "service.interface"
   val port      = system.settings.config getInt    "service.port"
   // create and start our service actor
-  val service = system.actorOf(Props(classOf[ReoccaPortalActor], interface, port), "api")
-  service ! ("init", JNull)
-
+  val service = system.actorOf(Props(classOf[ReoccaActor], interface, port), "api")
+//  service ! ("init", JNull)
+  IO(Http) ! Http.Bind(service, interface, port)
 }

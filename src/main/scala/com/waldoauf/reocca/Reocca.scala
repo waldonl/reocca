@@ -3,7 +3,7 @@ package com.waldoauf.reocca
 // the service, actors and paths
 
 import akka.actor._
-import akka.io.IO
+import akka.io.{Tcp, IO}
 import spray.can.Http
 import spray.http.{HttpRequest, StatusCodes, HttpMethods}
 
@@ -23,58 +23,18 @@ object JsonConversions extends Json4sJacksonSupport {
 
 import scala.collection.mutable.HashMap
 
-class ReoccaPortalActor(interface : String, port : Int) extends Actor with ReoccaPortal {
+class ReoccaActor(interface : String, port : Int) extends Actor with Reocca {
 
   // the HttpService trait defines only one abstract member, which
   // connects the services environment to the enclosing actor or test
   def actorRefFactory = context
   implicit val system = ActorSystem()
-  var routeCount = 0
-  var bound = false
-  def newRouteRunner(route: Route) = {
-    routeCount = routeCount + 1
-    context.actorOf(Props(classOf[RouteRunner], route), s"routeRunner${routeCount}")
-  }
 
-  var routeReceived : Route = (_ => Unit)
-  var httpListener : ActorRef = null
-  def receive = {
-    case (cacheName: String, jCache : JValue) => {
-      println(s"creating new route for ${cacheName}")
-      if (cacheName == "init")
-        routeReceived = buildRoute(cacheMap, context.self)
-      else
-        routeReceived = extendRouteWithCache(cacheName, jCache, context.self)
-      // start a new HTTP server with our reocca portal actor as the handler
-      if (bound) {
-        println("unbind")
-        httpListener ! Http.Unbind
-      } else {
-          println("about to bind")
-          IO(Http) ! Http.Bind(newRouteRunner(routeReceived), interface, port)
-      }
-    }
-    case Http.Unbound => {
-      bound = false
-      println("unbound")
-      IO(Http) ! Http.Bind(newRouteRunner(routeReceived), interface, port)
-    }
-    case Http.Bound => {
-      bound = true
-      println("bound")
-      httpListener = context.sender()
-    }
-  }
-}
-
-class RouteRunner(routeToRun : Route) extends Actor with HttpService {
-  def actorRefFactory: ActorRefFactory = context
-
-  def receive = runRoute(routeToRun)
+  def receive = runRoute(routeWrapper)
 }
 
 // Routing embedded in the actor
-trait ReoccaPortal extends HttpService {
+trait Reocca extends HttpService {
 
   // default logging
   implicit val log = LoggingContext.fromActorRefFactory
@@ -118,9 +78,12 @@ trait ReoccaPortal extends HttpService {
 
   var route = buildRoute(cacheMap, null)
 
-  def extendRouteWithCache(cacheName: String, jCache : JValue, routeManager: ActorRef): Route = {
-    cacheMap.put(cacheName, jCache)
-    buildRoute(cacheMap, routeManager)
+  /**
+   * wrapping the route enables hotswapping of the route,
+   * whilst the wrapper itself retains bound to the internal spray actor, that is bound to the port
+   */
+  def routeWrapper = (rc : RequestContext) => {
+    route(rc)
   }
 
   def buildRoute(cacheMap : HashMap[String, JValue], routeManager : ActorRef) : Route = {
@@ -150,11 +113,9 @@ trait ReoccaPortal extends HttpService {
             entity(as[JValue]) {
               json => complete {
                 println(s"receiving cache named ${pathRest}")
-                routeManager ! (pathRest, json)
-
-//                cacheMap.put(pathRest, json)
-//                println(s"cacheMap ${cacheMap}")
-//                route = buildRoute(cacheMap, routeManager)
+                cacheMap.put(pathRest, json)
+                println(s"cacheMap ${cacheMap}")
+                route = buildRoute(cacheMap, routeManager)
                 println(s"adding  ${pathRest} to: ${route}")
                 JNull
               }
@@ -169,7 +130,6 @@ trait ReoccaPortal extends HttpService {
       JField("method", JString(meth)) <- child
       if meth.equals(methName)
     } yield {
-      println(s"created path for method ${methName} to ${child}")
       child
     }
   }
@@ -184,7 +144,6 @@ trait ReoccaPortal extends HttpService {
       for {
         JField("response", jresponse) <- cacheEntry
       } response = jresponse
-      println(s"creating route for path ${cacheName}/${name} and response ${response}")
       pathPrefix(cacheName / name){
         pathEnd {
           complete(response)
