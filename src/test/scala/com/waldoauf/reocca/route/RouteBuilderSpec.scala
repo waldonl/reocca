@@ -70,37 +70,30 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
       status === StatusCodes.NotFound
     }
   }
-  }
-  "\nReocca, with the temporary test cache, " should { """return a response including "get this working" for GET requests to path 'todos/urgent/inprogress/late'""" in {
+   """return a response including "get this working" for GET requests to path 'todos/urgent/inprogress/late'""" in {
     Get("/test/todos/urgent/inprogress/late") ~> testRoute ~> check {
       status === StatusCodes.OK
       entity.asString.contains("""{"objective":"get this working"}""")    }
   }
-  }
-
-  "Reocca, with the temporary test cache, " should { """return a response including "get this working too" for GET requests to path '/test/tadas'""" in {
+  """return a response including "get this working too" for GET requests to path '/test/tadas'""" in {
     Get("/test/tadas") ~> testRoute ~> check {
       status === StatusCodes.OK
       entity.asString.contains("get this working too")
     }
   }
-  }
-
-  "Reocca, with the temporary test cache, " should { """return a response including "put to work" for PUT requests to path '/test/todos/urgent/inprogress'""" in {
+  """return a response including "put to work" for PUT requests to path '/test/todos/urgent/inprogress'""" in {
     Put("/test/todos/urgent/inprogress") ~> testRoute ~> check {
       status === StatusCodes.OK
       entity.asString.contains("put to work")
     }
   }
-  }
-  "Reocca, with the temporary test cache, " should { """return a response including "id" for POST requests to path 'test/todos'""" in {
+  """return a response including "id" for POST requests to path 'test/todos'""" in {
     Post("/test/todos") ~> testRoute ~> check {
       status === StatusCodes.OK
       entity.asString.contains("id")
     }
   }
-  }
-  "Reocca, with the temporary test cache, " should { """handle get requests to other paths in a default way""" in {
+  """handle get requests to other paths in a default way""" in {
     Get("/todos/urgentaaa") ~> testRoute ~> check {
       status === StatusCodes.NotFound
       handled must beTrue
