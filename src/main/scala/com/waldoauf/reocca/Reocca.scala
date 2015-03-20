@@ -40,39 +40,6 @@ trait Reocca extends HttpService {
   implicit val log = LoggingContext.fromActorRefFactory
 
   val cacheMap = HashMap.empty[String, JValue]
-  val initCache =
-    """[
-           {   "name" : "todos",
-                "key" : "*",
-                "replay" : true, "forward" : false,"record" : false,
-                "url" : "http:localhost:8883/todos",
-                "method" : "get", "header" : "tbd",
-                "response" : {"objective" : "get this working"}
-           },
-           {   "name" : "todos",
-                "key" : "*",
-                "replay" : true, "forward" : false,"record" : false,
-                "url" : "http:localhost:8883/todos",
-                "method" : "put", "header" : "tbd",
-                "response" : {"objective" : "put to work"}
-           },
-           {   "name" : "tadas",
-                "key" : "*",
-                "replay" : true, "forward" : false,"record" : false,
-                "url" : "http:localhost:8883/tadas",
-           "method" : "get", "header" : "tbd",
-                "response" : {"objective" : "get this working too"}
-           },
-           {   "name" : "todos",
-                "key" : "*",
-                "replay" : true, "forward" : false,"record" : false,
-                "url" : "http:localhost:8883/tadas",
-                "method" : "post", "header" : "tbd",
-                "response" : {"id" : "42"}
-            }]"""
-
-  val initCacheObj = parse(initCache)
-  cacheMap.put("init", initCacheObj)
 
   import JsonConversions._
 
@@ -88,6 +55,24 @@ trait Reocca extends HttpService {
 
   def buildRoute(cacheMap : HashMap[String, JValue], routeManager : ActorRef) : Route = {
     import JsonConversions._
+
+    val routeAppendix = path("REOCCA" / Rest) {
+      pathRest => {
+        put {
+          entity(as[JValue]) {
+            json => complete {
+              println(s"receiving cache named ${pathRest}")
+              cacheMap.put(pathRest, json)
+              println(s"cacheMap ${cacheMap}")
+              route = buildRoute(cacheMap, routeManager)
+              println(s"adding  ${pathRest} to: ${route}")
+              JNull
+            }
+          }
+        }
+      }
+    } ~ complete(StatusCodes.NotFound, cacheMap)
+
     var result : Option[Route] = None
     for {
       cacheName <- cacheMap.keys
@@ -106,23 +91,10 @@ trait Reocca extends HttpService {
           }
         }
     }
-    result.getOrElse((_ => Unit): Route) ~
-      path("REOCCA" / Rest) {
-        pathRest => {
-          put {
-            entity(as[JValue]) {
-              json => complete {
-                println(s"receiving cache named ${pathRest}")
-                cacheMap.put(pathRest, json)
-                println(s"cacheMap ${cacheMap}")
-                route = buildRoute(cacheMap, routeManager)
-                println(s"adding  ${pathRest} to: ${route}")
-                JNull
-              }
-            }
-          }
-        }
-      } ~ complete(StatusCodes.NotFound, cacheMap)
+    result match {
+      case None => routeAppendix
+      case Some(route) => route ~ routeAppendix
+    }
   }
   def filterPathsByMethodName(methName: String, pathObjects: JValue): List[List[JField]] = {
     for {
