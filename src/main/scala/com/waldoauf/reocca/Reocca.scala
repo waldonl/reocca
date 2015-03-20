@@ -114,14 +114,19 @@ trait Reocca extends HttpService {
         JField("name", JString(jname)) <- cacheEntry
         segment <- jname.split("/")
       } segments = segments / segment
+      for {
+        JField("key", JString(jkey)) <- cacheEntry
+        segment <- jkey.split("/")
+      } {
+        if (!segment.isEmpty)
+          segments = segments / segment
+      }
       var response : JValue = null
       for {
         JField("response", jresponse) <- cacheEntry
       } response = jresponse
-      pathPrefix(segments){
-        pathEnd {
+      path(segments){
           complete(response)
-        }
       }
     }
 
