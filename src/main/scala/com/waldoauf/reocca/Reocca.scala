@@ -80,7 +80,8 @@ trait Reocca extends HttpService {
         cacheMap.get(cacheName) match {
           case None => None
           case Some (cache) => {
-            val nextRoute = routePerMethodBuilder(cacheName, "get", filterPathsByMethodName("get", cache) ) ~
+            val nextRoute =
+              routePerMethodBuilder(cacheName, "get", filterPathsByMethodName("get", cache) ) ~
               routePerMethodBuilder(cacheName, "put",  filterPathsByMethodName("put", cache) ) ~
               routePerMethodBuilder(cacheName, "delete",  filterPathsByMethodName("delete", cache) ) ~
               routePerMethodBuilder(cacheName, "post",  filterPathsByMethodName("post", cache) )
@@ -108,15 +109,16 @@ trait Reocca extends HttpService {
 
   def routePerMethodBuilder(cacheName: String, methName : String, pathList: List[List[JField]]) : Route = {
     def buildPath(cacheEntry: List[JField]) : Route = {
-      var name = ""
+      var segments : PathMatcher0 = cacheName
       for {
         JField("name", JString(jname)) <- cacheEntry
-      } name = jname
+        segment <- jname.split("/")
+      } segments = segments / segment
       var response : JValue = null
       for {
         JField("response", jresponse) <- cacheEntry
       } response = jresponse
-      pathPrefix(cacheName / name){
+      pathPrefix(segments){
         pathEnd {
           complete(response)
         }

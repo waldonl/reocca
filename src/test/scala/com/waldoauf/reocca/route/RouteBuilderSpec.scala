@@ -22,14 +22,14 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
   implicit def actorRefFactory = system
   val testCache =
     """[
-           {   "name" : "todos",
+           {   "name" : "todos/urgent/inprogress",
                 "key" : "*",
                 "replay" : true, "forward" : false,"record" : false,
                 "url" : "http:localhost:8883/todos",
                 "method" : "get", "header" : "tbd",
                 "response" : {"objective" : "get this working"}
            },
-           {   "name" : "todos",
+           {   "name" : "todos/urgent/inprogress",
                 "key" : "*",
                 "replay" : true, "forward" : false,"record" : false,
                 "url" : "http:localhost:8883/todos",
@@ -57,16 +57,16 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
   var testRoute = buildRoute(cacheMap, null)
 
 
-    "\nReocca, with the temporary test cache, " should {"""return a response including "get this working" for GET requests to path 'todos'""" in {
-      Get("/test/todos") ~> testRoute ~> check {entity.asString.contains("get this working")}}}
+    "\nReocca, with the temporary test cache, " should {"""return a response including "get this working" for GET requests to path 'todos/urgent/inprogress'""" in {
+      Get("/test/todos/urgent/inprogress") ~> testRoute ~> check {entity.asString.contains("get this working")}}}
 
     "Reocca, with the temporary test cache, " should {"""return a response including "get this working too" for GET requests to path 'todos'""" in {
       Get("/test/tadas") ~> testRoute ~> check {entity.asString.contains("get this working too")}}}
 
-    "Reocca, with the temporary test cache, " should {"""return a response including "put to work" for PUT requests to path 'todos'""" in {
-      Put("/test/todos") ~> testRoute ~> check {entity.asString.contains("put to work")}}}
+    "Reocca, with the temporary test cache, " should {"""return a response including "put to work" for PUT requests to path 'todos/urgent/inprogress'""" in {
+      Put("/test/todos/urgent/inprogress") ~> testRoute ~> check {entity.asString.contains("put to work")}}}
     "Reocca, with the temporary test cache, " should {"""return a response including "id" for POST requests to path 'todos'""" in {
       Post("/test/todos") ~> testRoute ~> check {entity.asString.contains("id")}}}
     "Reocca, with the temporary test cache, " should {"""handle get requests to other paths in a default way""" in {
-      Get("/unknown") ~> testRoute ~> check {handled must beTrue}}}
+      Get("/todos/urgent") ~> testRoute ~> check {handled must beTrue}}}
 }
