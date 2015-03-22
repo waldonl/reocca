@@ -3,18 +3,17 @@ package com.waldoauf.reocca
 // the service, actors and paths
 
 import akka.actor._
-import akka.io.{Tcp, IO}
-import spray.can.Http
-import spray.http.{HttpRequest, StatusCodes, HttpMethods}
-
-import spray.util._
-import spray.http.HttpHeaders.{`Content-Type`, Location}
-import spray.routing._
+import spray.client.pipelining
+import spray.client.pipelining._
+import spray.http.{HttpMethods, StatusCodes}
 import spray.httpx.Json4sJacksonSupport
-import org.json4s.jackson.JsonMethods._// .native.JsonMethods._
+import spray.routing._
+import spray.util._
 
+// .native.JsonMethods._
+
+import org.json4s.JsonAST.{JField, JObject, JString, JValue}
 import org.json4s._
-import org.json4s.JsonAST.{JObject, JString, JValue, JField}
 
 /* Used to mix in Spray's Marshalling Support with json4s */
 object JsonConversions extends Json4sJacksonSupport {
@@ -28,13 +27,13 @@ class ReoccaActor(interface : String, port : Int) extends Actor with Reocca {
   // the HttpService trait defines only one abstract member, which
   // connects the services environment to the enclosing actor or test
   def actorRefFactory = context
-  implicit val system = ActorSystem()
 
   def receive = runRoute(routeWrapper)
 }
 
 // Routing embedded in the actor
 trait Reocca extends HttpService {
+  implicit val system1 = ActorSystem()
 
   // default logging
   implicit val log = LoggingContext.fromActorRefFactory
@@ -125,11 +124,30 @@ trait Reocca extends HttpService {
       for {
         JField("response", jresponse) <- cacheEntry
       } response = jresponse
+      var forward = false
+      for {
+        JField("forward", JBool(jforward)) <- cacheEntry
+      } forward = jforward
+      var url = ""
+      for {
+        JField("url", JString(jurl)) <- cacheEntry
+      } url = jurl
       path(segments){
-          complete(response)
+        if (forward) {
+          import system1.dispatcher
+          val pipeline = pipelining.sendReceive
+//          val responseFuture = pipeline {Get(url)}
+          complete(pipeline {Get(url)})
+        } else complete(response)
       }
     }
+    def loempia(): Unit = {
+      import spray.client.pipelining
 
+      import scala.concurrent.ExecutionContext.Implicits.global
+      pipelining.sendReceive
+
+    }
     def buildMethod(methName: String) : Directive0 = methName match {
       case "post" => method(HttpMethods.POST)
       case "delete" => method(HttpMethods.DELETE)
@@ -156,4 +174,3 @@ trait Reocca extends HttpService {
 
   }
 }
-
