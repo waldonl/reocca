@@ -5,7 +5,7 @@ package com.waldoauf.reocca
 import akka.actor._
 import spray.client.pipelining
 import spray.client.pipelining._
-import spray.http.{HttpMethods, StatusCodes}
+import spray.http.{IllegalUriException, HttpMethods, StatusCodes}
 import spray.httpx.Json4sJacksonSupport
 import spray.routing._
 import spray.util._
@@ -28,6 +28,16 @@ class ReoccaActor(interface : String, port : Int) extends Actor with Reocca {
   // connects the services environment to the enclosing actor or test
   def actorRefFactory = context
 
+    implicit def reoccaExceptionHandler(implicit log: LoggingContext) =
+//  val badUrlExceptionHandler =
+    ExceptionHandler {
+      case e: IllegalUriException =>
+        requestUri { uri =>
+          println(s"aaaaai ${uri}")
+          complete(StatusCodes.BadRequest, s"error in '${uri}': ${e.getMessage}")
+        }
+    }
+
   def receive = runRoute(routeWrapper)
 }
 
@@ -37,6 +47,7 @@ trait Reocca extends HttpService {
 
   // default logging
   implicit val log = LoggingContext.fromActorRefFactory
+
 
   val cacheMap = HashMap.empty[String, JValue]
 
@@ -136,7 +147,6 @@ trait Reocca extends HttpService {
         if (forward) {
           import system1.dispatcher
           val pipeline = pipelining.sendReceive
-//          val responseFuture = pipeline {Get(url)}
           complete(pipeline {Get(url)})
         } else complete(response)
       }
