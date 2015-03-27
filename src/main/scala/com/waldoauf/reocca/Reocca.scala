@@ -29,7 +29,6 @@ class ReoccaActor(interface : String, port : Int) extends Actor with Reocca {
   def actorRefFactory = context
 
     implicit def reoccaExceptionHandler(implicit log: LoggingContext) =
-//  val badUrlExceptionHandler =
     ExceptionHandler {
       case e: IllegalUriException =>
         requestUri { uri =>
