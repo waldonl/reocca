@@ -73,7 +73,7 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
 
   val testCacheObj = parse(testCache)
   cacheMap.put("test", testCacheObj)
-  var testRoute = buildRoute(cacheMap, null)
+  var testRoute = buildRoute(cacheMap)
 
 
     "\nReocca, with the temporary test cache, " should { """return a NOT FOUND error for GET requests to path 'todos/urgent/inprogress'""" in {

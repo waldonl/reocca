@@ -5,10 +5,14 @@ package com.waldoauf.reocca
 import akka.actor._
 import spray.client.pipelining
 import spray.client.pipelining._
-import spray.http.{IllegalUriException, HttpMethods, StatusCodes}
+import spray.http.{HttpMethods, HttpResponse, IllegalUriException, StatusCodes}
 import spray.httpx.Json4sJacksonSupport
+import spray.httpx.marshalling.ToResponseMarshallable
 import spray.routing._
 import spray.util._
+
+import scala.collection.mutable
+import scala.concurrent.Future
 
 // .native.JsonMethods._
 
@@ -52,7 +56,7 @@ trait Reocca extends HttpService {
 
   import JsonConversions._
 
-  var route = buildRoute(cacheMap, null)
+  var route = buildRoute(cacheMap)
 
   /**
    * wrapping the route enables hotswapping of the route,
@@ -62,7 +66,7 @@ trait Reocca extends HttpService {
     route(rc)
   }
 
-  def buildRoute(cacheMap : HashMap[String, JValue], routeManager : ActorRef) : Route = {
+  def buildRoute(cacheMap : HashMap[String, JValue]) : Route = {
     import JsonConversions._
 
     val routeAppendix = path("REOCCA" / Rest) {
@@ -73,7 +77,7 @@ trait Reocca extends HttpService {
               println(s"receiving cache named ${pathRest}")
               cacheMap.put(pathRest, json)
               println(s"cacheMap ${cacheMap}")
-              route = buildRoute(cacheMap, routeManager)
+              route = buildRoute(cacheMap)
               println(s"adding  ${pathRest} to: ${route}")
               JNull
             }
@@ -116,7 +120,10 @@ trait Reocca extends HttpService {
     }
   }
 
+
+
   def routePerMethodBuilder(cacheName: String, methName : String, pathList: List[List[JField]]) : Route = {
+    var response : JValue = null
     def buildPath(cacheEntry: List[JField]) : Route = {
       var segments : PathMatcher0 = cacheName
       for {
@@ -130,31 +137,75 @@ trait Reocca extends HttpService {
         if (!segment.isEmpty)
           segments = segments / segment
       }
-      var response : JValue = null
-      for {
-        JField("response", jresponse) <- cacheEntry
-      } response = jresponse
+      var responseField : JField = null;
+      for (
+         field : JField <- cacheEntry
+        if (field._1 == "response")
+      ) {
+        response = field._2
+        responseField = field
+      }
       var forward = false
       for {
         JField("forward", JBool(jforward)) <- cacheEntry
       } forward = jforward
+      var record = false
+      for {
+        JField("forward", JBool(jrecord)) <- cacheEntry
+      } record = jrecord
       var url = ""
       for {
         JField("url", JString(jurl)) <- cacheEntry
       } url = jurl
+
+      /**
+       * post processing the response received back from a forward
+       */
+      def complement(eventualResponse: Future[HttpResponse], oldResponse: JValue): ToResponseMarshallable = {
+        import scala.concurrent.ExecutionContext.Implicits.global
+        eventualResponse onComplete {
+          case util.Success(hr: HttpResponse) => {
+            val jrsp = hr.entity.data.asString
+            if (record) {
+              println(s"we will update the response to ${jrsp}")
+              import org.json4s._
+              import org.json4s.jackson.JsonMethods._
+              updateResponse(cacheMap, cacheName, segments, parse(jrsp), oldResponse)
+              route = buildRoute(cacheMap)
+            }
+          }
+          case util.Success(somethingElse) =>
+            println(s"we got something else: ${somethingElse}")
+          case util.Failure(error) =>
+            println("we got an error")
+        }
+        eventualResponse
+      }
       path(segments){
         if (forward) {
           import system1.dispatcher
-          val pipeline = pipelining.sendReceive
-          complete(pipeline {Get(url)})
+          var pipeline = pipelining.sendReceive
+          def eventualHttpResponse = pipeline {
+            Get(url)
+          }
+          complete(complement(eventualHttpResponse, response))
         } else complete(response)
       }
     }
-    def loempia(): Unit = {
-      import spray.client.pipelining
-
-      import scala.concurrent.ExecutionContext.Implicits.global
-      pipelining.sendReceive
+    def updateResponse(cacheMap: mutable.HashMap[String, JValue], cacheName: String, segmentsToUpdate: PathMatcher0, newResponse: JValue, oldResponse: JValue) = {
+      val oldCacheOption = cacheMap.get(cacheName)
+      if (oldCacheOption != None) {
+        val oldCache : JValue = oldCacheOption.get
+        var segments : PathMatcher0 = cacheName
+        val newCache : JValue = oldCache.map(cacheEntry => {
+          println(s"============ cache entry: ${cacheEntry}")
+          if (cacheEntry == oldResponse) {
+            println("hit!!!")
+            newResponse
+          } else cacheEntry
+          })
+        cacheMap.put(cacheName, newCache)
+      }
 
     }
     def buildMethod(methName: String) : Directive0 = methName match {
