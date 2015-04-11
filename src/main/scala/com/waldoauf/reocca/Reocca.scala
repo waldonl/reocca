@@ -71,6 +71,9 @@ trait Reocca extends HttpService {
 
     val routeAppendix = path("REOCCA" / Rest) {
       pathRest => {
+        get {
+          complete(Cache.asView(pathRest))
+        } ~ {
         put {
           entity(as[JValue]) {
             json => complete {
@@ -82,6 +85,7 @@ trait Reocca extends HttpService {
               JNull
             }
           }
+        }
         }
       }
     } ~ complete(StatusCodes.NotFound, cacheMap)
@@ -112,9 +116,6 @@ trait Reocca extends HttpService {
   }
 
   def routePerMethodBuilder(cacheName : String, methName : String, pathList:List[(TargetEntry, CacheTarget)]) : Route = {
-    if (pathList.isEmpty) {
-      throw new RuntimeException("empty pathlist")
-    }
     def segmentAppender(segments : PathMatcher0, segment : String) : PathMatcher0 = {
       if (segment.isEmpty)
         segments
@@ -191,7 +192,6 @@ trait Reocca extends HttpService {
         eventualResponse
       }
 
-      println(s" = path to ${cacheTarget.url} yielding ${targetEntry.response}")
       var url : String = null
       pathPrefix(segments) {
         pathEnd {
@@ -236,7 +236,7 @@ trait Reocca extends HttpService {
 
     def connectPaths(pathList: List[(TargetEntry, CacheTarget)], acc : Option[Route]) : Route = {
       if (pathList.isEmpty) acc match {
-        case None => complete("nopathinbuildpaths")
+        case None => reject
         case Some(route) => route
       } else {
         val innerRoute = buildPath(pathList.head)

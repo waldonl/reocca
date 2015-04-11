@@ -9,7 +9,6 @@ import org.json4s.JsonAST._
 
 import scala.collection.mutable.HashMap
 
-
 class TargetEntry(var key: String = "",
                   var method: String = "get",
                   var reqHeader: String = "",
@@ -40,6 +39,17 @@ class CacheTarget(var name: String = "",
 object Cache {
   type NamedCache = List[CacheTarget]
   val cacheMap = new HashMap[String, NamedCache]()
+  def asView(cacheName: String) = {
+    // strip the cache name and add target
+    cacheMap.get(cacheName) match {
+      case Some(namedCache) => {
+        for {
+          targetEntry <- namedCache
+        } yield Map("target" -> targetEntry)
+      }
+      case _ => null
+    }
+  }
 
   def entriesByMethod(method: String): List[(TargetEntry, CacheTarget)] = {
     var result: List[(TargetEntry, CacheTarget)] = Nil
