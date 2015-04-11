@@ -100,7 +100,7 @@ trait Reocca extends HttpService {
             val nextRoute =
               routePerMethodBuilder(cacheName, "get", Cache.entriesByMethod("get") ) ~
               routePerMethodBuilder(cacheName, "put", Cache.entriesByMethod("put") ) ~
-//              routePerMethodBuilder(cacheName, "delete", Cache.entriesByMethod("delete") ) ~
+              routePerMethodBuilder(cacheName, "delete", Cache.entriesByMethod("delete") ) ~
               routePerMethodBuilder(cacheName, "post", Cache.entriesByMethod("post") )
             result match {
               case None => result = Some(nextRoute)
@@ -124,19 +124,21 @@ trait Reocca extends HttpService {
           var xx : PathMatcher0 =  segment
           println("create new segment " + segment)
           xx
-      }
-        else {
-          print("/" + segment)
-          segments / segment
-      }
+        }
+          else {
+            print(s":/${segment}:")
+            segments / segment
+        }
     }
     def buildPath(pathEntry: (TargetEntry, CacheTarget)) : Route = {
       val targetEntry = pathEntry._1
       val cacheTarget = pathEntry._2
       var segments : PathMatcher0 = cacheName
+      println(s"segment: ${cacheName}")
       for {
         segment <- cacheTarget.name.split("/")
       } segments = segmentAppender(segments, segment)
+      print("<PATH>")
       for {
         segment <- targetEntry.key.split("/")
       } segments = segmentAppender(segments, segment)
@@ -144,16 +146,18 @@ trait Reocca extends HttpService {
       /**
        * post processing the response received back from a forward
        */
-      def complementReplacing(eventualResponse: Future[HttpResponse], oldResponse: JValue): ToResponseMarshallable = {
+      def complementReplacing(eventualResponse: Future[HttpResponse]): ToResponseMarshallable = {
         import scala.concurrent.ExecutionContext.Implicits.global
+        Cache.put(eventualResponse, targetEntry)
         eventualResponse onComplete {
           case util.Success(hr: HttpResponse) => {
+            println("@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded response received")
             val jrsp = hr.entity.data.asString
             if (cacheTarget.record) {
               println(s"we will update the response to ${jrsp}")
               import org.json4s._
               import org.json4s.jackson.JsonMethods._
-              updateResponse(Cache.cacheMap, cacheName, segments, parse(jrsp), oldResponse)
+              Cache.updateResponse(eventualResponse, parse(jrsp))
               route = buildRoute()
             }
           }
@@ -164,8 +168,9 @@ trait Reocca extends HttpService {
         }
         eventualResponse
       }
-      def updateResponse(cacheMap: HashMap[String, NamedCache], cacheName: String, segmentsToUpdate: PathMatcher0, newResponse: JValue, oldResponse: JValue) = {
+      def updateResponse(eventualResponse: Future[HttpResponse], cacheName: String, segmentsToUpdate: PathMatcher0, newResponse: JValue, oldResponse: JValue) = {
         // TODO
+        // update de response aan de hand van de segments
         }
 
       /**
@@ -201,8 +206,10 @@ trait Reocca extends HttpService {
             def eventualHttpResponse = pipeline {
               Get(cacheTarget.url)
             }
-            complete(complementReplacing(eventualHttpResponse, targetEntry.response))
-          } else complete(targetEntry.response)
+            complete(complementReplacing(eventualHttpResponse))
+          } else {
+            complete(targetEntry.response)
+          }
         } ~ {
           if (cacheTarget.forward) {
               (req : RequestContext) => req.withUnmatchedPathMapped((unmapped)  => {
@@ -219,7 +226,7 @@ trait Reocca extends HttpService {
               println(s"forwarding to ${url}")
               Get(url)
             }
-            complete(complementReplacing(eventualHttpResponse, targetEntry.response))
+            complete(complementReplacing(eventualHttpResponse))
           } else complete(targetEntry.response)
           }
       }

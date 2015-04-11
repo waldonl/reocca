@@ -5,9 +5,13 @@ package com.waldoauf.reocca {
  * Created by klm10896 on 4/9/2015.
  */
 
+import org.json4s
 import org.json4s.JsonAST._
+import spray.http.HttpResponse
 
+import scala.collection.mutable
 import scala.collection.mutable.HashMap
+import scala.concurrent.Future
 
 class TargetEntry(var key: String = "",
                   var method: String = "get",
@@ -37,10 +41,21 @@ class CacheTarget(var name: String = "",
 }
 
 object Cache {
+  def updateResponse(eventualResponse: Future[HttpResponse], newResponse: json4s.JValue) = {
+    responseMap.remove(eventualResponse) match {
+      case Some(targetEntry) => targetEntry.response = newResponse
+    }
+    //
+  }
+
+  val responseMap = new mutable.HashMap[Future[HttpResponse], TargetEntry]()
+  def put(eventualResponse: Future[HttpResponse], targetEntry: TargetEntry) = {
+    responseMap.put(eventualResponse, targetEntry)
+  }
+
   type NamedCache = List[CacheTarget]
   val cacheMap = new HashMap[String, NamedCache]()
   def asView(cacheName: String) = {
-    // strip the cache name and add target
     cacheMap.get(cacheName) match {
       case Some(namedCache) => {
         for {
