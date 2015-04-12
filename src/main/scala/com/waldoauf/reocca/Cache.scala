@@ -22,7 +22,7 @@ class TargetEntry(var key: String = "",
 }
 
 
-class EntryListSetting(val entries: List[TargetEntry]) {
+class EntryListSetting(var entries: List[TargetEntry]) {
   override def toString() = s"cache entries: ${entries}"
 }
 
@@ -41,16 +41,46 @@ class CacheTarget(var name: String = "",
 }
 
 object Cache {
-  def updateResponse(eventualResponse: Future[HttpResponse], newResponse: json4s.JValue) = {
-    responseMap.remove(eventualResponse) match {
-      case Some(targetEntry) => targetEntry.response = newResponse
-    }
-    //
+  def entrySorter(a: (TargetEntry, CacheTarget), b: (TargetEntry, CacheTarget)) = {
+    if (a._2.name == b._2.name) {
+      lexicalSorter(a._1.key, b._1.key)
+    } else lexicalSorter(a._2.name, b._2.name)
+
   }
 
-  val responseMap = new mutable.HashMap[Future[HttpResponse], TargetEntry]()
-  def put(eventualResponse: Future[HttpResponse], targetEntry: TargetEntry) = {
-    responseMap.put(eventualResponse, targetEntry)
+  def updateResponse(eventualResponse: Future[HttpResponse], newResponse: json4s.JValue) = {
+    responseMap.remove(eventualResponse) match {
+      case Some((targetEntry, _)) => targetEntry.response = newResponse
+    }
+  }
+  def appendResponse(eventualResponse: Future[HttpResponse], pathRemainder: String, newResponse: json4s.JValue) = {
+    responseMap.remove(eventualResponse) match {
+      case Some((_, cacheTarget)) =>
+        cacheTarget.entries.entries = new TargetEntry(response = newResponse) :: cacheTarget.entries.entries
+    }
+  }
+  def lexicalSorter(a: String, b: String): Boolean = {
+    if (a.length > b.length) {
+      if (a.substring(0, b.length) == b) {
+        true
+      } else {
+        a.compareTo(b) < 0
+      }
+    } else {
+     if (b.substring(0, a.length) == b) {
+        false
+      } else {
+        a.compareTo(b) < 0
+      }
+
+    }
+
+  }
+
+  val responseMap = new mutable.HashMap[Future[HttpResponse], (TargetEntry, CacheTarget)]()
+
+  def put(eventualResponse: Future[HttpResponse], pathEntry: (TargetEntry, CacheTarget)) = {
+    responseMap.put(eventualResponse, pathEntry)
   }
 
   type NamedCache = List[CacheTarget]
@@ -80,7 +110,7 @@ object Cache {
         } result = (entry, cacheTarget) :: result
       }
     }
-    result
+    result.sortWith(entrySorter)
   }
 
   def putCache(name: String, jCache: JValue) = {
