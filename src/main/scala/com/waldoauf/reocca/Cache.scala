@@ -62,15 +62,15 @@ object Cache {
   def lexicalSorter(a: String, b: String): Boolean = {
     if (a.length > b.length) {
       if (a.substring(0, b.length) == b) {
-        true
+        false
       } else {
-        a.compareTo(b) < 0
+        a.compareTo(b) > 0
       }
     } else {
      if (b.substring(0, a.length) == b) {
-        false
+        true
       } else {
-        a.compareTo(b) < 0
+        a.compareTo(b) > 0
       }
 
     }
