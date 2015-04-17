@@ -36,6 +36,7 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
           { "target" : {
             "name" : "todos/urgent",
             "replay" : true, "forward" : false, "record" : false,
+            "minSimDelay" : "300", "maxSimDelay" : "500",
             "keyGeneratorName" : "default",
             "keyGeneratorParameter" : "pathFilter{1}",
             "url" : "http:ERROR//localhost:8883/todos",

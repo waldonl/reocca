@@ -2,7 +2,7 @@ package com.waldoauf.reocca {
 /**
  * Cache has targets has configuration settins and entries
  * entries have entry settings and a response
- * Created by klm10896 on 4/9/2015.
+ * Created by Waldo auf der Springe on 4/9/2015.
  */
 
 import org.json4s
@@ -30,6 +30,8 @@ class CacheTarget(var name: String = "",
                   var replay: Boolean = true,
                   var forward: Boolean = false,
                   var record: Boolean = false,
+                  var minSimDelay: BigInt = 0,
+                  var maxSimDelay: BigInt = 0,
                   var keyGeneratorName: String = "",
                   var keyGeneratorParameter: String = "",
                   var url: String = "",
@@ -37,7 +39,7 @@ class CacheTarget(var name: String = "",
                   var skipHttpHeaders: Boolean = false,
                   var decoratorName: String = "",
                   var entries: EntryListSetting = new EntryListSetting(null)) {
-  override def toString() = s"CacheTarget name: ${name}, url: ${url}, entries: ${entries}"
+  override def toString() = s"CacheTarget name: ${name}, delay: ${minSimDelay}, url: ${url}, entries: ${entries}"
 }
 
 object Cache {
@@ -72,9 +74,7 @@ object Cache {
       } else {
         a.compareTo(b) > 0
       }
-
     }
-
   }
 
   val responseMap = new mutable.HashMap[Future[HttpResponse], (TargetEntry, CacheTarget)]()
@@ -129,6 +129,8 @@ object Cache {
           case JField("replay", JBool(name)) => newCacheTarget.replay = name
           case JField("forward", JBool(name)) => newCacheTarget.forward = name
           case JField("record", JBool(name)) => newCacheTarget.record = name
+          case JField("minSimDelay", JInt(name)) => newCacheTarget.minSimDelay = name
+          case JField("maxSimDelay", JInt(name)) => newCacheTarget.maxSimDelay = name
           case JField("keyGeneratorName", JString(name)) => newCacheTarget.keyGeneratorName = name
           case JField("keyGeneratorParameter", JString(name)) => newCacheTarget.keyGeneratorParameter = name
           case JField("url", JString(name)) => newCacheTarget.url = name

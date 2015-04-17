@@ -1,28 +1,28 @@
 package com.waldoauf.reocca
 
-import akka.actor.{ ActorSystem, Props }
+import akka.actor.{ActorSystem, Props}
 import akka.io.IO
-import org.json4s.jackson.JsonMethods
-import spray.json._
 import spray.can.Http
-import org.json4s.JsonMethods
-import org.json4s.JField
-import org.json4s.JNull
-import org.json4s.JObject
-import org.json4s.JsonAST.JString
-import org.json4s.JsonAST.JValue
 
-import scala.io.Source
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.language.postfixOps
 
 object Boot extends App {
   implicit val system = ActorSystem()
 
 
+  // response scheduling for delayed responses
+  val responseScheduler = system.actorOf(Props(classOf[DelayedResponseActor]), "tick")
+  val cancellable = system.scheduler.schedule(0 milliseconds, 100 milliseconds, responseScheduler, "tick")
+
   // fetch configuration from resources/application.config
   val interface = system.settings.config getString "service.interface"
   val port      = system.settings.config getInt    "service.port"
   // create and start our service actor
-  val service = system.actorOf(Props(classOf[ReoccaActor], interface, port), "api")
+  val service = system.actorOf(Props(classOf[ReoccaActor], interface, port, responseScheduler), "api")
 //  service ! ("init", JNull)
+
+  //
   IO(Http) ! Http.Bind(service, interface, port)
 }

@@ -26,7 +26,7 @@ object JsonConversions extends Json4sJacksonSupport {
 
 import scala.collection.mutable.HashMap
 
-class ReoccaActor(interface : String, port : Int) extends Actor with Reocca {
+class ReoccaActor(interface : String, port : Int, scheduler: ActorRef) extends Actor with Reocca {
 
   // the HttpService trait defines only one abstract member, which
   // connects the services environment to the enclosing actor or test
@@ -41,7 +41,11 @@ class ReoccaActor(interface : String, port : Int) extends Actor with Reocca {
         }
     }
 
-  def receive = runRoute(routeWrapper)
+  def receive = {
+    responseScheduler = scheduler
+    runRoute(routeWrapper)
+  }
+
 }
 
 // Routing embedded in the actor
@@ -55,6 +59,8 @@ trait Reocca extends HttpService {
 //  val cacheMap = HashMap.empty[String, JValue]
 
   import JsonConversions._
+
+  var responseScheduler : ActorRef = null
 
   var route = buildRoute()
 
@@ -123,6 +129,7 @@ trait Reocca extends HttpService {
         if (segments == null) {
           var xx : PathMatcher0 =  segment
           println("create new segment " + segment)
+//       TODO   xx.
           xx
         }
           else {
@@ -199,7 +206,6 @@ trait Reocca extends HttpService {
       pathPrefix(segments) {
         pathEnd {
           if (cacheTarget.forward) {
-            println("end UUUUUUUUUUUUUUUUrl : " + cacheTarget.url)
             import system1.dispatcher
             var pipeline = pipelining.sendReceive
             def eventualHttpResponse = pipeline {
@@ -207,6 +213,11 @@ trait Reocca extends HttpService {
             }
             complete(complementReplacing(eventualHttpResponse))
           } else {
+            if (cacheTarget.minSimDelay > 0) {
+              (reqC: RequestContext) => {
+                responseScheduler ! Scheduled(reqC, System.currentTimeMillis() + cacheTarget.minSimDelay.toLong, targetEntry.response)
+              }
+            } else
             complete(targetEntry.response)
           }
         } ~ {
@@ -230,8 +241,8 @@ trait Reocca extends HttpService {
               Get(url)
             }
             complete(complementAppending(eventualHttpResponse, pathRemainder))
-          } else complete(targetEntry.response)
-          }
+          } else reject()
+        }
       }
     }
     def appendResponse(cacheMap: HashMap[String, NamedCache], cacheName: String, segmentsToUpdate: PathMatcher0, newResponse: JValue, oldResponse: JValue) = {
