@@ -17,12 +17,15 @@ trait ResponseScheduler {
   val retries = 3
   implicit val system = ActorSystem()
   val Tick = "tick"
-  def schedulePastSlot(count : Integer): Unit = {
-    Schedule.schedule(((System.currentTimeMillis() / 100) - count) * 100)
-    if (count >= 0) schedulePastSlot(count - 1)
+  /**
+   * allow multiple attempts per click to mitigate the risk of tick misses.
+   */
+  def scheduleAttempt(count : Integer): Unit = {
+    Schedule.schedule(((System.currentTimeMillis() / 100) + count) * 100)
+    if (count > 0) scheduleAttempt(count - 1)
   }
   def tickedResponse: Actor.Receive = {
-    case Tick => schedulePastSlot(retries)
+    case Tick => scheduleAttempt(retries)
     case scheduled:Scheduled => Schedule.put(scheduled )
   }
 
