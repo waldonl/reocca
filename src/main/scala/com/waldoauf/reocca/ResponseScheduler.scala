@@ -21,7 +21,7 @@ trait ResponseScheduler {
    * allow multiple attempts per click to mitigate the risk of tick misses.
    */
   def scheduleAttempt(count : Integer): Unit = {
-    Schedule.schedule(((System.currentTimeMillis() / 100) + count) * 100)
+    Schedule.schedule(((System.currentTimeMillis() / 100) - count - 1) * 100)
     if (count > 0) scheduleAttempt(count - 1)
   }
   def tickedResponse: Actor.Receive = {
