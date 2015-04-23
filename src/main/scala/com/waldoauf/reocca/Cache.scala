@@ -1,6 +1,6 @@
 package com.waldoauf.reocca {
 /**
- * Cache has targets has configuration settins and entries
+ * Cache has targets has configuration settings and entries
  * entries have entry settings and a response
  * Created by Waldo auf der Springe on 4/9/2015.
  */
@@ -19,6 +19,11 @@ class TargetEntry(var key: String = "",
                   var rspHeader: String = "",
                   var response: JValue = JString("undefined")) {
   override def toString() = s"targetEntry (key: ${key}, method: ${method}},response: ${response})"
+
+  /**
+   * key prepended with '/' if non empty
+   */
+  def keySegment : String = if (key == null || key.isEmpty) "" else s"/${key}"
 }
 
 
@@ -57,8 +62,8 @@ object Cache {
   }
   def appendResponse(eventualResponse: Future[HttpResponse], pathRemainder: String, newResponse: json4s.JValue) = {
     responseMap.remove(eventualResponse) match {
-      case Some((_, cacheTarget)) =>
-        cacheTarget.entries.entries = new TargetEntry(response = newResponse) :: cacheTarget.entries.entries
+      case Some((targetEntry, cacheTarget)) =>
+        cacheTarget.entries.entries = new TargetEntry(key = targetEntry.key + pathRemainder, response = newResponse) :: cacheTarget.entries.entries
     }
   }
   def lexicalSorter(a: String, b: String): Boolean = {

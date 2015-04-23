@@ -3,7 +3,7 @@ package com.waldoauf.reocca
 // the service, actors and paths
 
 import akka.actor._
-import com.waldoauf.reocca.Cache.{NamedCache, cacheMap}
+import com.waldoauf.reocca.Cache.cacheMap
 import spray.client.pipelining
 import spray.client.pipelining._
 import spray.http._
@@ -23,8 +23,6 @@ import org.json4s._
 object JsonConversions extends Json4sJacksonSupport {
   implicit def json4sJacksonFormats: Formats = DefaultFormats
 }
-
-import scala.collection.mutable.HashMap
 
 class ReoccaActor(interface : String, port : Int, scheduler: ActorRef) extends Actor with Reocca {
 
@@ -151,14 +149,14 @@ trait Reocca extends HttpService {
       } segments = segmentAppender(segments, segment)
 
       /**
-       * post processing the response received back from a forward
+       * replace the response of an existing path entry with the one received back from a forward
        */
       def complementReplacing(eventualResponse: Future[HttpResponse]): ToResponseMarshallable = {
         import scala.concurrent.ExecutionContext.Implicits.global
         Cache.put(eventualResponse, (targetEntry, cacheTarget))
         eventualResponse onComplete {
           case util.Success(hr: HttpResponse) => {
-            println("@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded response received")
+            println("@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded replaceable response received")
             val jrsp = hr.entity.data.asString
             if (cacheTarget.record) {
               println(s"we will update the response to ${jrsp}")
@@ -177,14 +175,14 @@ trait Reocca extends HttpService {
       }
 
       /**
-       * post processing the response received back from a forward
+       * create a new path entry to store the response received back from a forward
        */
       def complementAppending(eventualResponse: Future[HttpResponse], pathRemainder : Uri.Path): ToResponseMarshallable = {
         import scala.concurrent.ExecutionContext.Implicits.global
         Cache.put(eventualResponse, (targetEntry, cacheTarget))
         eventualResponse onComplete {
           case util.Success(hr: HttpResponse) => {
-            println("@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded response received")
+            println(s"@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded appendable response received ${cacheTarget.name}= =${targetEntry.keySegment}= =${pathRemainder}")
             val jrsp = hr.entity.data.asString
             if (cacheTarget.record) {
 //              println(s"we will update the response to ${jrsp} with remaining key ${pathRemainder.}")
@@ -222,31 +220,30 @@ trait Reocca extends HttpService {
           }
         } ~ {
           if (cacheTarget.forward) {
-                var pathRemainder: Uri.Path = null
-              (req : RequestContext) => req.withUnmatchedPathMapped((unmapped)  => {
+              var pathRemainder: Uri.Path = null
+              (req : RequestContext) => {req.withUnmatchedPathMapped((unmapped)  => {
                 pathRemainder = unmapped
-
-                // determine the superfluous part of the segment
-                // append that to the cache url
-                // forward to that url
-                // when complementing that, add the response as a new entry
-                var url = cacheTarget.url + unmapped.toString() // todo : exclude requestparamaters
-                  println("more UUUUUUUUUUUUUUUUrl : " + url)
                 unmapped
-              })
-            import system1.dispatcher
-            var pipeline = pipelining.sendReceive
-            def eventualHttpResponse = pipeline {
-              println(s"forwarding to ${url}")
-              Get(url)
-            }
-            complete(complementAppending(eventualHttpResponse, pathRemainder))
-          } else reject()
+              }
+              )
+              // determine the superfluous part of the segment
+              // append that to the cache url
+              // forward to that url
+              // when complementing that, add the response as a new entry
+              var url = cacheTarget.url + targetEntry.keySegment + pathRemainder.toString() // todo : exclude requestparamaters
+//                  println("more UUUUUUUUUUUUUUUUrl : " + url)
+              import system1.dispatcher
+              var pipeline = pipelining.sendReceive
+              def eventualHttpResponse = pipeline {
+//                  println(s"forwarding to ${url}")
+                Get(url)
+              }
+              req.complete(complementAppending(eventualHttpResponse, pathRemainder))
+              }
+
+            } else reject()
         }
       }
-    }
-    def appendResponse(cacheMap: HashMap[String, NamedCache], cacheName: String, segmentsToUpdate: PathMatcher0, newResponse: JValue, oldResponse: JValue) = {
-      // todo work on this after refactoring the cache structure
     }
     def buildMethod(methName: String) : Directive0 = methName match {
       case "post" => method(HttpMethods.POST)
