@@ -21,6 +21,7 @@ Now you can load a cache via a rest PUT on
     http://localhost:9999/REOCCA/myexample
     
 Here is an example of a cache to post:
+```javascript
         [  { "target" : {
             "name" : "/todos/toforward",
             "replay" : true, "forward" : true, "record" : true,
@@ -44,7 +45,7 @@ Here is an example of a cache to post:
                   "response" : {"objective" : "get this working late"}
              }      ]
           }}]
-          
+```
 Studying the structure of this json should give you a good overview of REOCCA's possibilities.
 Note, however that some keywords refer to functionality which is not working at the time of writing.
 Check the open issue list.
