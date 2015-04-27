@@ -30,7 +30,7 @@ class ReoccaActor(interface : String, port : Int, scheduler: ActorRef) extends A
   // connects the services environment to the enclosing actor or test
   def actorRefFactory = context
 
-    implicit def reoccaExceptionHandler(implicit log: LoggingContext) =
+  implicit def reoccaExceptionHandler(implicit log: LoggingContext) =
     ExceptionHandler {
       case e: IllegalUriException =>
         requestUri { uri =>
@@ -54,7 +54,7 @@ trait Reocca extends HttpService {
   implicit val log = LoggingContext.fromActorRefFactory
 
 
-//  val cacheMap = HashMap.empty[String, JValue]
+  //  val cacheMap = HashMap.empty[String, JValue]
 
   import JsonConversions._
 
@@ -78,18 +78,18 @@ trait Reocca extends HttpService {
         get {
           complete(Cache.asView(pathRest))
         } ~ {
-        put {
-          entity(as[JValue]) {
-            json => complete {
-              println(s"receiving cache named ${pathRest}")
-              Cache.putCache(pathRest, json)
-              println(s"cacheMap ${cacheMap}")
-              route = buildRoute()
-              println(s"adding  ${pathRest} to: ${route}")
-              JNull
+          put {
+            entity(as[JValue]) {
+              json => complete {
+                println(s"receiving cache named ${pathRest}")
+                Cache.putCache(pathRest, json)
+                println(s"cacheMap ${cacheMap}")
+                route = buildRoute()
+                println(s"adding  ${pathRest} to: ${route}")
+                JNull
+              }
             }
           }
-        }
         }
       }
     } ~ complete(StatusCodes.NotFound, cacheMap)
@@ -98,20 +98,20 @@ trait Reocca extends HttpService {
     for {
       cacheName <- cacheMap.keys
     } {
-        cacheMap.get(cacheName) match {
-          case None => None
-          case Some (cache) => {
-            val nextRoute =
-              routePerMethodBuilder(cacheName, "get", Cache.entriesByMethod("get") ) ~
+      cacheMap.get(cacheName) match {
+        case None => None
+        case Some (cache) => {
+          val nextRoute =
+            routePerMethodBuilder(cacheName, "get", Cache.entriesByMethod("get") ) ~
               routePerMethodBuilder(cacheName, "put", Cache.entriesByMethod("put") ) ~
               routePerMethodBuilder(cacheName, "delete", Cache.entriesByMethod("delete") ) ~
               routePerMethodBuilder(cacheName, "post", Cache.entriesByMethod("post") )
-            result match {
-              case None => result = Some(nextRoute)
-              case _ => result = Some(nextRoute ~ result.get)
-            }
+          result match {
+            case None => result = Some(nextRoute)
+            case _ => result = Some(nextRoute ~ result.get)
           }
         }
+      }
     }
     result match {
       case None => routeAppendix
@@ -179,7 +179,7 @@ trait Reocca extends HttpService {
             println(s"@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded appendable response received ${cacheTarget.name}= =${targetEntry.keySegment}= =${pathRemainder}")
             val jrsp = hr.entity.data.asString
             if (cacheTarget.record) {
-//              println(s"we will update the response to ${jrsp} with remaining key ${pathRemainder.}")
+              //              println(s"we will update the response to ${jrsp} with remaining key ${pathRemainder.}")
               import org.json4s._
               import org.json4s.jackson.JsonMethods._
               Cache.appendResponse(eventualResponse, pathRemainder.toString(), parse(jrsp))
@@ -224,7 +224,7 @@ trait Reocca extends HttpService {
             unmapped
           }
           )
-            var url = cacheTarget.url + targetEntry.keySegment + pathRemainder.toString() // todo : exclude requestparamaters
+            var url = cacheTarget.url + targetEntry.keySegment + pathRemainder.toString() // includes optional requestparamaters
             import system1.dispatcher
             var pipeline = pipelining.sendReceive
             def eventualHttpResponse = pipeline {
@@ -235,12 +235,24 @@ trait Reocca extends HttpService {
 
         } else reject()
       }
+      def isPartOf(a: Map[String, String],b: Map[String, String]) : Boolean = {
+        a.forall{case (k,v) => Some(v) == b.get(k)}
+      }
       var url : String = null
       pathPrefix(segments) {
         pathEnd {
-          targetEntryFound
+          parameterMap { reqPrmsMap => {
+            if (isPartOf(reqPrmsMap, targetEntry.keyRequestMap)) {
+              if (isPartOf(targetEntry.keyRequestMap, reqPrmsMap)) targetEntryFound
+              else targetEntryMissed
+            } else reject()
+          }}
         } ~ {
-          targetEntryMissed
+          parameterMap { reqPrmsMap => {
+            if (isPartOf(targetEntry.keyRequestMap, reqPrmsMap)) targetEntryMissed
+            else reject()
+          }
+          }
         }
       }
     }

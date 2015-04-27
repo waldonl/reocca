@@ -27,7 +27,7 @@ class TargetEntry(var key: String = "",
       } else key
     }
   }
-  val keyRequestMap = {
+  lazy val keyRequestMap = {
     var rm = Map[String, String]()
     if (key.contains('?')) {
       val splitted = key.split('?')
