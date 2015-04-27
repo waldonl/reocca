@@ -56,9 +56,13 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
                   "method" : "get", "requestHeader" : "tbd", "responseHeader" : "tbd",
                   "response" : {"objective" : "get this working late"}
              },
-             {   "key" : "inprogress/late&intent=test",
+             {   "key" : "inprogress/late?intent=test",
                   "method" : "get", "requestHeader" : "tbd", "responseHeader" : "tbd",
                   "response" : {"objective" : "get this test working late"}
+             },
+             {   "key" : "inprogress/late?intent=test&scope=more",
+                  "method" : "get", "requestHeader" : "tbd", "responseHeader" : "tbd",
+                  "response" : {"objective" : "get this other test working late"}
              }      ]
           }},
           { "target" : {
@@ -132,9 +136,15 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
       }
     }
     """find a matching response based both on target entry name, entries key including request params""" in {
-      Get("/test/todos/urgent/inprogress/late&intent=test") ~> testRoute ~> check {
+      Get("/test/todos/urgent/inprogress/late?intent=test") ~> testRoute ~> check {
         status === StatusCodes.OK
         entity.asString.contains("get this test working late")
+      }
+    }
+    """find a matching response based both on target entry name, entries key including multiple request params in different order""" in {
+      Get("/test/todos/urgent/inprogress/late?scope=more&intent=test") ~> testRoute ~> check {
+        status === StatusCodes.OK
+        entity.asString.contains("get this other test working late")
       }
     }
     """handle a forwarding requests to a bad url by giving an error status code and message""" in {
