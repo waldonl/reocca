@@ -7,8 +7,8 @@ A typical use case for REOCCA would be to serve mock responses to an application
 * forwards to configured URLs when in 'forward' mode
 * caches the response returned by a forward in 'record' mode
 * caches can be imported, exported or edited
-* different testers can share a single REOCCA service and autonomously manage their own cache, (aka cache target)
 * testers can specify a delay time per response
+* different testers can share a single REOCCA service and autonomously manage their own cache, (aka cache target)
 
 ## How to run
 Assuming Scala and Sbt are installed and the git repo is cloned, at the root directory startup SBT
@@ -21,7 +21,9 @@ and inside the SBT console enter
 ```    
 This starts REOCCA on your localhost at port 9999.
 Now you can load a cache via a rest `PUT` on 
-    `http://localhost:9999/REOCCA/myexample`
+```
+    http://localhost:9999/REOCCA/myexample
+```
     
 Here is an example of a cache to post:
 ```javascript

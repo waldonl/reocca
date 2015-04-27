@@ -1,3 +1,4 @@
+
 package com.waldoauf.reocca {
 /**
  * Cache has targets has configuration settings and entries
@@ -19,11 +20,30 @@ class TargetEntry(var key: String = "",
                   var rspHeader: String = "",
                   var response: JValue = JString("undefined")) {
   override def toString() = s"targetEntry (key: ${key}, method: ${method}},response: ${response})"
+  lazy val keyPath = {
+    if (key == null || key.isEmpty) "" else {
+      if (key.contains('?')) {
+        key.split('?')(0)
+      } else key
+    }
+  }
+  val keyRequestMap = {
+    var rm = Map[String, String]()
+    if (key.contains('?')) {
+      val splitted = key.split('?')
+      val pairs = splitted(1).split('&')
+      val req = for (kv <- pairs) {
+        val pair = kv.split('=')
+        rm = rm + (pair(0) -> pair(1))
+      }
+    }
+    rm
+  }
 
   /**
    * key prepended with '/' if non empty
    */
-  def keySegment : String = if (key == null || key.isEmpty) "" else s"/${key}"
+  def keySegment : String = if (key == null || key.isEmpty) "" else s"/${keyPath}"
 }
 
 

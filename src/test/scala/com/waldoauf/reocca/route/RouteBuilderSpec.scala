@@ -8,6 +8,7 @@ import com.waldoauf.reocca.{Cache, Reocca}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.specs2.mutable.Specification
+import shapeless.HNil
 import spray.http.{IllegalUriException, StatusCodes}
 import spray.routing.ExceptionHandler
 import spray.testkit.Specs2RouteTest
@@ -143,5 +144,47 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
     //        handled must beTrue
     //      }
     //    }
+  }
+  val routep =
+    parameterMap { params =>
+      def paramString(param: (String, String)): String = s"""${param._1} = '${param._2}'"""
+      complete(s"The parameters are ${params.map(paramString).mkString(", ")}")
+    }
+
+  Get("/?color=blue&count=42") ~> routep ~> check {
+    responseAs[String] === "The parameters are color = 'blue', count = '42'"
+  }
+  Get("/?x=1&x=2") ~> routep ~> check {
+    responseAs[String] === "The parameters are x = '2'"
+  }
+  val col = Symbol("color")
+  val ppp = col ! "blue"
+  val sss = 'size ! "big"
+  val pppp = sss :: ppp :: HNil
+
+  val routeDifferentReqParam = parameter(pppp) {complete("bigblue")} ~ complete("parms nok")
+  Get("?color=blue&size=big") ~> routeDifferentReqParam ~> check {
+    responseAs[String] === "bigblue"
+  }
+  Get("?color=red&size=big") ~> routeDifferentReqParam ~> check {
+    responseAs[String] === "parms nok"
+  }
+  val routeSeq =
+    parameterMap { params => params.get("aap") match {
+      case Some("aapje") => complete("parms aap")
+      case otherwise => reject()
+    }
+    } ~
+    parameterMap { params => params.get("noot") match {
+      case Some("nootje") => complete("parms noot")
+      case otherwise => reject()
+    }
+    }
+
+  Get("/?aap=aapje") ~> routeSeq ~> check {
+    responseAs[String] === "parms aap"
+  }
+  Get("/?noot=nootje") ~> routeSeq ~> check {
+    responseAs[String] === "parms noot"
   }
 }

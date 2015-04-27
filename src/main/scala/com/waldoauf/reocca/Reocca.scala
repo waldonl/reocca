@@ -123,17 +123,10 @@ trait Reocca extends HttpService {
     def segmentAppender(segments : PathMatcher0, segment : String) : PathMatcher0 = {
       if (segment.isEmpty)
         segments
-      else
-        if (segments == null) {
-          var xx : PathMatcher0 =  segment
-          println("create new segment " + segment)
-//       TODO   xx.
-          xx
-        }
-          else {
-            print(s":/${segment}:")
-            segments / segment
-        }
+      else {
+        print(s":/${segment}:")
+        segments / segment
+      }
     }
     def buildPath(pathEntry: (TargetEntry, CacheTarget)) : Route = {
       val targetEntry = pathEntry._1
@@ -145,7 +138,7 @@ trait Reocca extends HttpService {
       } segments = segmentAppender(segments, segment)
       print("<PATH>")
       for {
-        segment <- targetEntry.key.split("/")
+        segment <- targetEntry.keyPath.split("/")
       } segments = segmentAppender(segments, segment)
 
       /**
@@ -153,6 +146,7 @@ trait Reocca extends HttpService {
        */
       def complementReplacing(eventualResponse: Future[HttpResponse]): ToResponseMarshallable = {
         import scala.concurrent.ExecutionContext.Implicits.global
+
         Cache.put(eventualResponse, (targetEntry, cacheTarget))
         eventualResponse onComplete {
           case util.Success(hr: HttpResponse) => {
@@ -199,49 +193,54 @@ trait Reocca extends HttpService {
         }
         eventualResponse
       }
-
-      var url : String = null
-      pathPrefix(segments) {
-        pathEnd {
-          if (cacheTarget.forward) {
+      /**
+       * This target entry matches with the request, and when forward and replay are on, the entry will be updated
+       */
+      def targetEntryFound = {
+        if (cacheTarget.forward) {
+          import system1.dispatcher
+          var pipeline = pipelining.sendReceive
+          def eventualHttpResponse = pipeline {
+            Get(cacheTarget.url)
+          }
+          complete(complementReplacing(eventualHttpResponse))
+        } else {
+          if (cacheTarget.minSimDelay > 0) {
+            (reqC: RequestContext) => {
+              responseScheduler ! Scheduled(reqC, System.currentTimeMillis() + cacheTarget.minSimDelay.toLong, targetEntry.response)
+            }
+          } else
+            complete(targetEntry.response)
+        }
+      }
+      /**
+       * This targetEntry matches, but the request is too specific and triggers a new entry to be added to the cache, when forward is true
+       */
+      def targetEntryMissed = {
+        if (cacheTarget.forward) {
+          var pathRemainder: Uri.Path = null
+          (req : RequestContext) => {req.withUnmatchedPathMapped((unmapped)  => {
+            pathRemainder = unmapped
+            unmapped
+          }
+          )
+            var url = cacheTarget.url + targetEntry.keySegment + pathRemainder.toString() // todo : exclude requestparamaters
             import system1.dispatcher
             var pipeline = pipelining.sendReceive
             def eventualHttpResponse = pipeline {
-              Get(cacheTarget.url)
+              Get(url)
             }
-            complete(complementReplacing(eventualHttpResponse))
-          } else {
-            if (cacheTarget.minSimDelay > 0) {
-              (reqC: RequestContext) => {
-                responseScheduler ! Scheduled(reqC, System.currentTimeMillis() + cacheTarget.minSimDelay.toLong, targetEntry.response)
-              }
-            } else
-            complete(targetEntry.response)
+            req.complete(complementAppending(eventualHttpResponse, pathRemainder))
           }
-        } ~ {
-          if (cacheTarget.forward) {
-              var pathRemainder: Uri.Path = null
-              (req : RequestContext) => {req.withUnmatchedPathMapped((unmapped)  => {
-                pathRemainder = unmapped
-                unmapped
-              }
-              )
-              // determine the superfluous part of the segment
-              // append that to the cache url
-              // forward to that url
-              // when complementing that, add the response as a new entry
-              var url = cacheTarget.url + targetEntry.keySegment + pathRemainder.toString() // todo : exclude requestparamaters
-//                  println("more UUUUUUUUUUUUUUUUrl : " + url)
-              import system1.dispatcher
-              var pipeline = pipelining.sendReceive
-              def eventualHttpResponse = pipeline {
-//                  println(s"forwarding to ${url}")
-                Get(url)
-              }
-              req.complete(complementAppending(eventualHttpResponse, pathRemainder))
-              }
 
-            } else reject()
+        } else reject()
+      }
+      var url : String = null
+      pathPrefix(segments) {
+        pathEnd {
+          targetEntryFound
+        } ~ {
+          targetEntryMissed
         }
       }
     }
