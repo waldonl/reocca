@@ -1,4 +1,4 @@
-
+import com.waldoauf.reocca.UpdateCacheError
 package com.waldoauf.reocca {
 /**
  * Cache has targets has configuration settings and entries
@@ -8,12 +8,15 @@ package com.waldoauf.reocca {
 
 import org.json4s
 import org.json4s.JsonAST._
-import spray.http.HttpResponse
+import spray.http.{StatusCodes, StatusCode, HttpResponse}
 
 import scala.collection.mutable
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
 
+sealed trait UpdateCacheError {def responseStatus : Int}
+  case object UnknownField extends UpdateCacheError {val responseStatus = StatusCodes.NotFound}
+  case object InvalidValue extends UpdateCacheError {val responseStatus = StatusCodes.Conflict}
 class TargetEntry(var key: String = "",
                   var method: String = "get",
                   var reqHeader: String = "",
@@ -72,7 +75,47 @@ object Cache {
     if (a._2.name == b._2.name) {
       lexicalSorter(a._1.key, b._1.key)
     } else lexicalSorter(a._2.name, b._2.name)
+  }
 
+  def updateField(cacheName: String, targetName:String, fieldName: String, fieldValue: String): Either[UpdateCacheError, String] = {
+    def checkBoolean(value : String): Boolean = {
+      Array("TRUE", "FALSE").contains(value.toUpperCase())
+    }
+    def checkBigInt(value : String): Boolean = {
+      val bigintRegex = """\d*""".r
+      value match {
+        case bigintRegex(_*) => true
+        case otherwise => false
+      }
+    }
+    def conditionalFieldUpdater(fieldChecker: String => Boolean, updater: String => Unit) : Either[UpdateCacheError, String] = {
+      if (fieldChecker(fieldValue)) {
+        updater(fieldValue)
+        Right(fieldValue)
+      } else {
+        Left(InvalidValue)
+      }
+    }//
+
+    cacheMap.get(cacheName) match {
+      case None => Left(UnknownField)
+      case Some(namedCache : NamedCache) => namedCache.find(_.name == targetName) match {
+        case None => Left(UnknownField)
+        case Some(cacheTarget : CacheTarget) => fieldName match {
+          case "decoratorName" => {cacheTarget.decoratorName = fieldValue; Right(fieldValue)}
+          case "replay" => {conditionalFieldUpdater(checkBoolean, (fld: String) => {cacheTarget.replay = fld.toBoolean})}
+          case "forward" => {conditionalFieldUpdater(checkBoolean, (fld: String) => {cacheTarget.forward = fld.toBoolean})}
+          case "record" => {conditionalFieldUpdater(checkBoolean, (fld: String) => {cacheTarget.record = fld.toBoolean})}
+          case "minSimDelay" => {conditionalFieldUpdater(checkBigInt, (fld: String) => {cacheTarget.minSimDelay = fld.toInt})}
+          case "maxSimDelay" => {conditionalFieldUpdater(checkBigInt, (fld: String) => {cacheTarget.maxSimDelay = fld.toInt})}
+          case "keyGeneratorName" => {cacheTarget.keyGeneratorName = fieldValue; Right(fieldValue)}
+          case "keyGeneratorParameter" => {cacheTarget.keyGeneratorParameter = fieldValue; Right(fieldValue)}
+          case "url" =>  {cacheTarget.url = fieldValue; Right(fieldValue)}
+          case "filterNamespace" => {conditionalFieldUpdater(checkBoolean, (fld: String) => {cacheTarget.filterNamespace = fld.toBoolean})}
+          case "skipHttpHeaders" => {conditionalFieldUpdater(checkBoolean, (fld: String) => {cacheTarget.skipHttpHeaders = fld.toBoolean})}
+        }
+      }
+    }
   }
 
   def updateResponse(eventualResponse: Future[HttpResponse], newResponse: json4s.JValue) = {
@@ -100,6 +143,13 @@ object Cache {
         a.compareTo(b) > 0
       }
     }
+  }
+  def getType(pathToField : String) = {
+    getField(pathToField).getType
+  }
+  def getField(pathToField: String) = {
+
+
   }
 
   val responseMap = new mutable.HashMap[Future[HttpResponse], (TargetEntry, CacheTarget)]()
