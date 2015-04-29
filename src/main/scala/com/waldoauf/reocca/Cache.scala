@@ -1,4 +1,4 @@
-import com.waldoauf.reocca.UpdateCacheError
+
 package com.waldoauf.reocca {
 /**
  * Cache has targets has configuration settings and entries
@@ -8,13 +8,13 @@ package com.waldoauf.reocca {
 
 import org.json4s
 import org.json4s.JsonAST._
-import spray.http.{StatusCodes, StatusCode, HttpResponse}
+import spray.http.{StatusCode, HttpResponse, StatusCodes}
 
 import scala.collection.mutable
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
 
-sealed trait UpdateCacheError {def responseStatus : Int}
+sealed trait UpdateCacheError {def responseStatus : StatusCode}
   case object UnknownField extends UpdateCacheError {val responseStatus = StatusCodes.NotFound}
   case object InvalidValue extends UpdateCacheError {val responseStatus = StatusCodes.Conflict}
 class TargetEntry(var key: String = "",
@@ -143,13 +143,6 @@ object Cache {
         a.compareTo(b) > 0
       }
     }
-  }
-  def getType(pathToField : String) = {
-    getField(pathToField).getType
-  }
-  def getField(pathToField: String) = {
-
-
   }
 
   val responseMap = new mutable.HashMap[Future[HttpResponse], (TargetEntry, CacheTarget)]()
