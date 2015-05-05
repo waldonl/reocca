@@ -79,8 +79,9 @@ trait Reocca extends HttpService {
           complete(Cache.asView(pathRest))
         } ~ {
           put {
+            println(s"put of ${pathRest}")
             pathRest.split('/') match {
-              case Array(cacheName) => {
+              case Array(cacheName: String) => {
                 entity(as[JValue]) {
                   json => complete {
                     println(s"receiving cache named ${pathRest}")
@@ -91,19 +92,39 @@ trait Reocca extends HttpService {
                     JNull
                   }
                 }
-
               }
-              case Array(cacheName, targetName, fieldName, fieldValue) => {
-                Cache.updateField(cacheName, targetName, fieldName, fieldValue) match {
-                  case Left(error: UpdateCacheError) => complete(error.responseStatus, JNull)
+              case updateParts: Array[String] => {
+                println(s"update field ${updateParts.toList}")
+                val updateValue: String = null
+                entity(as[FormData]) {
+                  //                  'url.?) {
+                  //                  'replay.as[Boolean].?,'forward.as[Boolean].?,'record.as[Boolean].?,
+                  //                  'minSimDelay.as[Int].?,'maxSimDelay.as[Int].?,'keyGeneratorName.?,
+                  //                  'keyGeneratorParameter.?,'url.?,'filterNamespace.as[Boolean].?,'skipHttpHeaders.as[Boolean].?,
+                  //                  'decoratorName.?,'key.?,'method.?,'requestHeader.?,'responseHeader.?,'response.?) {
+                  // does end up here
+                  (url) => {
+                    //                  (replay, forward, record, minSimDelay, maxSimDelay, keyGeneratorName, keyGeneratorParameter,
+                    //                    url, filterNamespace, skipHttpHeaders, decoratorName,key,method,requestHeader,
+                    //                    responseHeader,response) => {
+                    println(s"in formfields fun, url: ${url}") // does NOT end up here
+                    Cache.updateField(updateParts, None, None, None, None, None, None, None,
+                      Some("UUUUrl") /*url*/ , None, None, None, None, None, None, None, None) match {
+                      //                    Cache.updateField(updateParts, replay, forward, record, minSimDelay, maxSimDelay, keyGeneratorName, keyGeneratorParameter,
+                      //                    url, filterNamespace, skipHttpHeaders, decoratorName, key,method, requestHeader, responseHeader,response) match {
+                      case Left(error: UpdateCacheError) => complete(error.responseStatus, JNull)
+                      case otherwise => complete(StatusCodes.OK, cacheMap)
+                    }
+
+                  }
+
                 }
               }
-              case otherwise => complete(StatusCodes.NotAcceptable, JNull)
             }
           }
         }
-      }
-    } ~ complete(StatusCodes.NotFound, cacheMap)
+      } ~ complete(StatusCodes.NotFound, cacheMap)
+    }
 
     var result : Option[Route] = None
     for {
@@ -250,7 +271,7 @@ trait Reocca extends HttpService {
       }
       def isPartOf(a: Map[String, String],b: Map[String, String]) : Boolean = {
         a.forall{case (k,v) => Some(v) == b.get(k)}
-      }
+      }//
       var url : String = null
       pathPrefix(segments) {
         pathEnd {
@@ -268,7 +289,7 @@ trait Reocca extends HttpService {
           }
         }
       }
-    }
+    }//
     def buildMethod(methName: String) : Directive0 = methName match {
       case "post" => method(HttpMethods.POST)
       case "delete" => method(HttpMethods.DELETE)

@@ -8,8 +8,7 @@ import com.waldoauf.reocca.{Cache, Reocca}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.specs2.mutable.Specification
-import shapeless.HNil
-import spray.http.{IllegalUriException, StatusCodes}
+import spray.http._
 import spray.routing.ExceptionHandler
 import spray.testkit.Specs2RouteTest
 import spray.util.LoggingContext
@@ -118,11 +117,11 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
 
 
   "\nReocca with the  test cache " should {
-    """return a NOT FOUND error for GET requests to path 'todos/urgent/ixxxnprogress'""" in {
-    Get("/todos/urgent/ixxxnprogress") ~> testRoute ~> check {
-      status === StatusCodes.NotFound
-    }
-  }
+//    """return a NOT FOUND error for GET requests to path 'todos/urgent/ixxxnprogress'""" in {
+//    Get("/todos/urgent/ixxxnprogress") ~> testRoute ~> check {
+//      status === StatusCodes.NotFound
+//    }
+//  }
     """respond including "get this working" for GET requests to path 'todos/urgent/inprogress'""" in {
       Get("/test/todos/urgent/inprogress") ~> testRoute ~> check {
         status === StatusCodes.OK
@@ -164,6 +163,11 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
         entity.asString.contains("id")
       }
     }
+//    """PUT  alters the value of a designated field""" in {
+//      Put("/REOCCA/test/todos/urgent", FormData(Seq("url" -> "loempia"))) ~> testRoute ~> check {
+//        status === StatusCodes.OK
+//      }
+//    }
     //    """handle get requests to other paths in a default way""" in {
     //      Get("/todos/urgentaaa") ~> testRoute ~> check {
     //        status === StatusCodes.NotFound
@@ -171,46 +175,13 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
     //      }
     //    }
   }
-  val routep =
-    parameterMap { params =>
-      def paramString(param: (String, String)): String = s"""${param._1} = '${param._2}'"""
-      complete(s"The parameters are ${params.map(paramString).mkString(", ")}")
+  val routeFF =
+    formFields("color", 'age.as[Int]) { (color, age) =>
+      complete(s"The color is '$color' and the age ten years ago was ${age - 10}")
     }
 
-  Get("/?color=blue&count=42") ~> routep ~> check {
-    responseAs[String] === "The parameters are color = 'blue', count = '42'"
+  Post("/", FormData(Seq("color" -> "blue", "age" -> "68"))) ~> routeFF ~> check {
+    responseAs[String] === "The color is 'blue' and the age ten years ago was 58"
   }
-  Get("/?x=1&x=2") ~> routep ~> check {
-    responseAs[String] === "The parameters are x = '2'"
-  }
-  val col = Symbol("color")
-  val ppp = col ! "blue"
-  val sss = 'size ! "big"
-  val pppp = sss :: ppp :: HNil
 
-  val routeDifferentReqParam = parameter(pppp) {complete("bigblue")} ~ complete("parms nok")
-  Get("?color=blue&size=big") ~> routeDifferentReqParam ~> check {
-    responseAs[String] === "bigblue"
-  }
-  Get("?color=red&size=big") ~> routeDifferentReqParam ~> check {
-    responseAs[String] === "parms nok"
-  }
-  val routeSeq =
-    parameterMap { params => params.get("aap") match {
-      case Some("aapje") => complete("parms aap")
-      case otherwise => reject()
-    }
-    } ~
-    parameterMap { params => params.get("noot") match {
-      case Some("nootje") => complete("parms noot")
-      case otherwise => reject()
-    }
-    }
-
-  Get("/?aap=aapje") ~> routeSeq ~> check {
-    responseAs[String] === "parms aap"
-  }
-  Get("/?noot=nootje") ~> routeSeq ~> check {
-    responseAs[String] === "parms noot"
-  }
 }
