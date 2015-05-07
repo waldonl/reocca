@@ -20,7 +20,7 @@ and inside the SBT console enter
     run
 ```    
 This starts REOCCA on your localhost at port 9999.
-Now you can load a cache via a rest `PUT` on 
+Now you can load a cache via a rest `PUT` with header `Content-Type` = `application/json; charset=UTF-8` on
 ```
     http://localhost:9999/REOCCA/myexample
 ```

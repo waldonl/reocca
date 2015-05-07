@@ -5,8 +5,6 @@ package com.waldoauf.reocca.route
  */
 
 import org.specs2.mutable.Specification
-import spray.routing.directives.ParameterDirectives._
-import spray.routing.directives.RouteDirectives._
 import spray.testkit.Specs2RouteTest
 
 
@@ -176,11 +174,11 @@ class RouteSpec extends Specification with Specs2RouteTest /*with Reocca*/ {
 //  Post("/", FormData(Seq("color" -> "blue", "age" -> "68"))) ~> routeFF ~> check {
 //    responseAs[String] === "The color is 'blue' and the age ten years ago was 58"
 //  }
-  val routep =
-    parameterMap { params =>
-      def paramString(param: (String, String)): String = s"""${param._1} = '${param._2}'"""
-      complete(s"The parameters are ${params.map(paramString).mkString(", ")}")
-    }
+//  val routep =
+//    parameterMap { params =>
+//      def paramString(param: (String, String)): String = s"""${param._1} = '${param._2}'"""
+//      complete(s"The parameters are ${params.map(paramString).mkString(", ")}")
+//    }
 
 //  Get("/?color=blue&count=42") ~> routep ~> check {
 //    responseAs[String] === "The parameters are color = 'blue', count = '42'"
