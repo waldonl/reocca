@@ -16,7 +16,6 @@ import scala.concurrent.Future
 
 // .native.JsonMethods._
 
-import org.json4s.JsonAST.JValue
 import org.json4s._
 
 /* Used to mix in Spray's Marshalling Support with json4s */
@@ -47,7 +46,7 @@ class ReoccaActor(interface : String, port : Int, scheduler: ActorRef) extends A
 }
 
 // Routing embedded in the actor
-trait Reocca extends HttpService {
+trait Reocca extends FormRoute  {
   implicit val system1 = ActorSystem()
 
   // default logging
@@ -75,24 +74,24 @@ trait Reocca extends HttpService {
 
     val routeAppendix = path("REOCCA" / Rest) {
       pathRest => {
-        get {
-          complete(Cache.asView(pathRest))
-        } ~ {
           put {
-            entity(as[JValue]) {
-              json => complete {
-                println(s"receiving cache named ${pathRest}")
-                Cache.putCache(pathRest, json)
-                println(s"cacheMap ${cacheMap}")
-                route = buildRoute()
-                println(s"adding  ${pathRest} to: ${route}")
-                JNull
+              entity(as[JValue]) {
+                json => complete {
+                  println(s"receiving cache named ${pathRest}")
+                  Cache.putCache(pathRest, json)
+                  println(s"cacheMap ${cacheMap}")
+                  route = buildRoute()
+                  println(s"adding  ${pathRest} to: ${route}")
+                  JNull
+                }
               }
-            }
-          }
+        } ~ get {
+          complete(Cache.asView(pathRest))
         }
-      }
-    } ~ complete(StatusCodes.NotFound, cacheMap)
+      } ~ complete(StatusCodes.NotFound, cacheMap)
+    }
+
+
 
     var result : Option[Route] = None
     for {
@@ -115,11 +114,11 @@ trait Reocca extends HttpService {
     }
     result match {
       case None => routeAppendix
-      case Some(route) => route ~ routeAppendix
+      case Some(route) => routePrefix ~ route ~ routeAppendix
     }
   }
 
-  def routePerMethodBuilder(cacheName : String, methName : String, pathList:List[(TargetEntry, CacheTarget)]) : Route = {
+  def routePerMethodBuilder(cacheName : String, methName : String, pathList:List[(Option[TargetEntry], CacheTarget)]) : Route = {
     def segmentAppender(segments : PathMatcher0, segment : String) : PathMatcher0 = {
       if (segment.isEmpty)
         segments
@@ -128,7 +127,7 @@ trait Reocca extends HttpService {
         segments / segment
       }
     }
-    def buildPath(pathEntry: (TargetEntry, CacheTarget)) : Route = {
+    def buildPath(pathEntry: (Option[TargetEntry], CacheTarget)) : Route = {
       val targetEntry = pathEntry._1
       val cacheTarget = pathEntry._2
       var segments : PathMatcher0 = cacheName
@@ -138,7 +137,10 @@ trait Reocca extends HttpService {
       } segments = segmentAppender(segments, segment)
       print("<PATH>")
       for {
-        segment <- targetEntry.keyPath.split("/")
+        segment <- targetEntry match {
+          case Some(te) => te.keyPath.split("/")
+          case otherwise => Array("") // or "/" ???
+        }
       } segments = segmentAppender(segments, segment)
 
       /**
@@ -160,10 +162,14 @@ trait Reocca extends HttpService {
               route = buildRoute()
             }
           }
-          case util.Success(somethingElse) =>
+          case util.Success(somethingElse) =>  {
             println(s"we got something else: ${somethingElse}")
-          case util.Failure(error) =>
+            Cache.remove(eventualResponse)
+          }
+          case util.Failure(error) => {
             println("we got an error")
+          }
+          case otherwise => StatusCodes.NotFound
         }
         eventualResponse
       }
@@ -171,50 +177,61 @@ trait Reocca extends HttpService {
       /**
        * create a new path entry to store the response received back from a forward
        */
-      def complementAppending(eventualResponse: Future[HttpResponse], pathRemainder : Uri.Path): ToResponseMarshallable = {
+      def complementAppending(eventualResponse: Future[HttpResponse], pathRemainder : String): ToResponseMarshallable = {
         import scala.concurrent.ExecutionContext.Implicits.global
         Cache.put(eventualResponse, (targetEntry, cacheTarget))
         eventualResponse onComplete {
           case util.Success(hr: HttpResponse) => {
-            println(s"@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded appendable response received ${cacheTarget.name}= =${targetEntry.keySegment}= =${pathRemainder}")
+            println(s"@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded appendable response received ${cacheTarget.name}= =${if (targetEntry.isDefined) targetEntry.get.keySegment}= =${pathRemainder}")
             val jrsp = hr.entity.data.asString
             if (cacheTarget.record) {
               //              println(s"we will update the response to ${jrsp} with remaining key ${pathRemainder.}")
               import org.json4s._
               import org.json4s.jackson.JsonMethods._
-              Cache.appendResponse(eventualResponse, pathRemainder.toString(), parse(jrsp))
+              Cache.appendResponse(eventualResponse, pathRemainder, parse(jrsp))
               route = buildRoute()
             }
           }
-          case util.Success(somethingElse) =>
+          case util.Success(somethingElse) => {
+            Cache.remove(eventualResponse)
             println(s"we got something else: ${somethingElse}")
-          case util.Failure(error) =>
+          }
+          case util.Failure(error) => {
+            Cache.remove(eventualResponse)
             println("we got an error")
+          }
         }
         eventualResponse
       }
       /**
-       * This target entry matches with the request, and when forward and replay are on, the entry will be updated
+       * This optional target entry matches with the request, and when forward and replay are on, the entry will be updated
        */
-      def targetEntryFound = {
+      def targetEntryFound: Route = {
         if (cacheTarget.forward) {
           import system1.dispatcher
           var pipeline = pipelining.sendReceive
           def eventualHttpResponse = pipeline {
             Get(cacheTarget.url)
           }
-          complete(complementReplacing(eventualHttpResponse))
+          targetEntry match {
+            case Some(te) => complete(complementReplacing(eventualHttpResponse))
+            case None => complete(complementAppending(eventualHttpResponse, ""))
+          }
         } else {
-          if (cacheTarget.minSimDelay > 0) {
-            (reqC: RequestContext) => {
-              responseScheduler ! Scheduled(reqC, System.currentTimeMillis() + cacheTarget.minSimDelay.toLong, targetEntry.response)
-            }
-          } else
-            complete(targetEntry.response)
+          if (targetEntry.isDefined) {
+            if (cacheTarget.minSimDelay > 0 ) {
+              (reqC: RequestContext) => {
+                responseScheduler ! Scheduled(reqC, System.currentTimeMillis() + cacheTarget.minSimDelay.toLong, targetEntry.get.response)
+              }
+            } else
+              complete(targetEntry.get.response)
+          } else {
+            reject()
+          }
         }
       }
       /**
-       * This targetEntry matches, but the request is too specific and triggers a new entry to be added to the cache, when forward is true
+       * This optional targetEntry matches, but the request is too specific and triggers a new entry to be added to the cache, when forward is true
        */
       def targetEntryMissed = {
         if (cacheTarget.forward) {
@@ -224,34 +241,42 @@ trait Reocca extends HttpService {
             unmapped
           }
           )
-            var url = cacheTarget.url + targetEntry.keySegment + pathRemainder.toString() // includes optional requestparamaters
+            val targetEntryKey = targetEntry match {
+              case Some(te) => te.keySegment
+              case otherwise => ""
+            }
+            var url = cacheTarget.url + targetEntryKey + pathRemainder.toString() // includes optional requestparamaters
             import system1.dispatcher
             var pipeline = pipelining.sendReceive
             def eventualHttpResponse = pipeline {
               Get(url)
             }
-            req.complete(complementAppending(eventualHttpResponse, pathRemainder))
+            req.complete(complementAppending(eventualHttpResponse, pathRemainder.toString()))
           }
-
         } else reject()
       }
-      def isPartOf(a: Map[String, String],b: Map[String, String]) : Boolean = {
-        a.forall{case (k,v) => Some(v) == b.get(k)}
+      def isPartOf(part: Map[String, String], whole: Map[String, String]) : Boolean = {
+        part.forall{case (k,v) => Some(v) == whole.get(k)}
       }
       var url : String = null
+      val emptyKeyRequestMap : Map[String, String] =  Map()
+      val targetEntryKeyRequestMap : Map[String, String] = targetEntry match {
+        case Some(te: TargetEntry) => te.keyRequestMap
+        case otherwise => emptyKeyRequestMap
+      }
       pathPrefix(segments) {
         pathEnd {
           parameterMap { reqPrmsMap => {
-            if (isPartOf(reqPrmsMap, targetEntry.keyRequestMap)) {
-              if (isPartOf(targetEntry.keyRequestMap, reqPrmsMap)) targetEntryFound
+            if (isPartOf(reqPrmsMap, targetEntryKeyRequestMap)) {
+              if (isPartOf(targetEntryKeyRequestMap, reqPrmsMap)) targetEntryFound
               else targetEntryMissed
             } else reject()
           }}
         } ~ {
           parameterMap { reqPrmsMap => {
-            if (isPartOf(targetEntry.keyRequestMap, reqPrmsMap)) targetEntryMissed
-            else reject()
-          }
+              if (isPartOf(targetEntryKeyRequestMap, reqPrmsMap)) targetEntryMissed
+              else reject()
+            }
           }
         }
       }
@@ -263,7 +288,7 @@ trait Reocca extends HttpService {
       case _ => method(HttpMethods.GET)
     }
 
-    def connectPaths(pathList: List[(TargetEntry, CacheTarget)], acc : Option[Route]) : Route = {
+    def connectPaths(pathList: List[(Option[TargetEntry], CacheTarget)], acc : Option[Route]) : Route = {
       if (pathList.isEmpty) acc match {
         case None => reject
         case Some(route) => route

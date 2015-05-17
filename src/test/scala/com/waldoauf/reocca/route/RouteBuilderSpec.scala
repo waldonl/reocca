@@ -27,6 +27,7 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
       case somethingElse : RuntimeException =>
         requestUri { uri =>
           println(s"some exception ${somethingElse}")
+          somethingElse.printStackTrace()
           complete(StatusCodes.NotAcceptable, s"error in '${uri}': ${somethingElse}")
         }
     }
@@ -163,25 +164,37 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
         entity.asString.contains("id")
       }
     }
-//    """PUT  alters the value of a designated field""" in {
-//      Put("/REOCCA/test/todos/urgent", FormData(Seq("url" -> "loempia"))) ~> testRoute ~> check {
-//        status === StatusCodes.OK
-//      }
-//    }
-    //    """handle get requests to other paths in a default way""" in {
-    //      Get("/todos/urgentaaa") ~> testRoute ~> check {
-    //        status === StatusCodes.NotFound
-    //        handled must beTrue
-    //      }
-    //    }
+    """Post of a field and value results in a field update """ in {
+      Post("/REOCCA/test/todos/urgent/inprogress", FormData(Seq("replay" -> "true", "url" -> "4242"))) ~> testRoute ~> check {
+        status === StatusCodes.OK
+      }
+    }
   }
   val routeFF =
-    formFields("color", 'age.as[Int]) { (color, age) =>
-      complete(s"The color is '$color' and the age ten years ago was ${age - 10}")
+  path("REOCCA" / Rest) {
+    pathRest => {
+
+      post {
+        formFields("colormaybe".as[Boolean].?, 'age.?.as[Int]) {
+            println(s"ppppppath : ${pathRest}")
+            (color, age) => {
+            println("route fffffffffffffffffffffffffffffffffffffffffffffffffff")
+            complete(s"The color is '$color' and the age ten years ago was ${age - 10}")
+          }
+        }
+      }
     }
 
-  Post("/", FormData(Seq("color" -> "blue", "age" -> "68"))) ~> routeFF ~> check {
-    responseAs[String] === "The color is 'blue' and the age ten years ago was 58"
   }
+
+  Post("/REOCCA/bbb", FormData(Seq("colormaybe" -> "true", "age" -> "68"))) ~> routeFF ~> check {
+    responseAs[String] === "The color is 'Some(true)' and the age ten years ago was 58"
+  }
+  //    """handle get requests to other paths in a default way""" in {
+  //      Get("/todos/urgentaaa") ~> testRoute ~> check {
+  //        status === StatusCodes.NotFound
+  //        handled must beTrue
+  //      }
+  //    }
 
 }
