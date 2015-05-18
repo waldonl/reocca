@@ -118,11 +118,11 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
 
 
   "\nReocca with the  test cache " should {
-//    """return a NOT FOUND error for GET requests to path 'todos/urgent/ixxxnprogress'""" in {
-//    Get("/todos/urgent/ixxxnprogress") ~> testRoute ~> check {
-//      status === StatusCodes.NotFound
-//    }
-//  }
+    """return a NOT FOUND error for GET requests to path 'todos/urgent/ixxxnprogress'""" in {
+    Get("/todos/urgent/ixxxnprogress") ~> testRoute ~> check {
+      status === StatusCodes.NotFound
+    }
+  }
     """respond including "get this working" for GET requests to path 'todos/urgent/inprogress'""" in {
       Get("/test/todos/urgent/inprogress") ~> testRoute ~> check {
         status === StatusCodes.OK

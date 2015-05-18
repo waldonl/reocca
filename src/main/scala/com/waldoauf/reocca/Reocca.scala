@@ -88,7 +88,7 @@ trait Reocca extends FormRoute  {
         } ~ get {
           complete(Cache.asView(pathRest))
         }
-      } ~ complete(StatusCodes.NotFound, cacheMap)
+      }
     }
 
 
@@ -114,7 +114,7 @@ trait Reocca extends FormRoute  {
     }
     result match {
       case None => routeAppendix
-      case Some(route) => routePrefix ~ route ~ routeAppendix
+      case Some(route) => routePrefix ~ route ~ routeAppendix ~ complete(StatusCodes.NotFound, cacheMap)
     }
   }
 
@@ -169,7 +169,7 @@ trait Reocca extends FormRoute  {
           case util.Failure(error) => {
             println("we got an error")
           }
-          case otherwise => StatusCodes.NotFound
+          case otherwise => StatusCodes.ServerError
         }
         eventualResponse
       }
@@ -204,7 +204,8 @@ trait Reocca extends FormRoute  {
         eventualResponse
       }
       /**
-       * This optional target entry matches with the request, and when forward and replay are on, the entry will be updated
+       * This optional target entry matches with the complete request path, and when forward and replay are on, the entry will be updated.
+       * If the target entry is None, the cache target itself matches.
        */
       def targetEntryFound: Route = {
         if (cacheTarget.forward) {
