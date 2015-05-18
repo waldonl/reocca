@@ -66,6 +66,8 @@ While this is still in beta (or alpha?), if REOCCA receives a request it can not
 
 
 ###FAQ
+* Is REOCCA bound to port 9999?
+    * Obviously not ;) Forwarding already works, so it is perfectly feasible to have 2 servers on different ports, where one server forwards to the other. Of course you can also test forwarding with a rest service of your own. Make sure its response is json, and the content-type is according.
 * Why Spray and not Akka HTTP?
     * When I started this (Q2-2015) I assumed the maturity of Spray would lead to less surprises, and hence would be the safest route to a result that could demonstrate functionality and scalability. Porting to Akka HTTP in the near future is a viable option.
 * Why Scala and not Java 8?
