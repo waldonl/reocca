@@ -153,7 +153,7 @@ object Cache {
         for {
           cacheTarget: CacheTarget <- cache
           someEntry: Option[TargetEntry] <- (cacheTarget.entries.entries.map(te => Option(te))).::(None)
-          if method == "*" || (someEntry match {
+          if method == "*" || someEntry == None || (someEntry match {
             case Some(entry) => entry.method == method
             case otherwise => false
           })
@@ -229,6 +229,7 @@ object Cache {
         case otherwise => "/" // never matches
       }
       val entryIdentifierList = s"${entry._2.name}${targetEntryKey}".split('/').toList
+      println(s"target name: ${entry._2.name} , entry key: ${entry._1}")
       println(s"checking : ${entryIdentifierList} vs ${fieldPartEntries}")
       entryIdentifierList.equals(fieldPartEntries.take(entryIdentifierList.length))  &&
         (entryIdentifierList.length == fieldPartEntries.length || fieldPartEntries.takeRight(1).equals(targetEntryMethod))

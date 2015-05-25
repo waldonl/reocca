@@ -271,12 +271,18 @@ trait Reocca extends FormRoute  {
             if (isPartOf(reqPrmsMap, targetEntryKeyRequestMap)) {
               if (isPartOf(targetEntryKeyRequestMap, reqPrmsMap)) targetEntryFound
               else targetEntryMissed
-            } else reject()
+            } else {
+              println(s"pathend: incoming request ${reqPrmsMap} not part of this cache entry ${targetEntryKeyRequestMap}")
+              reject()
+            }
           }}
         } ~ {
           parameterMap { reqPrmsMap => {
               if (isPartOf(targetEntryKeyRequestMap, reqPrmsMap)) targetEntryMissed
-              else reject()
+              else {
+                println(s"pathpref: this cache entry ${targetEntryKeyRequestMap} does not match incoming request ${reqPrmsMap}")
+                reject()
+              }
             }
           }
         }
