@@ -67,7 +67,7 @@ case class CacheTarget(var name: String = "",
                   var filterNamespace: Boolean = false,
                   var skipHttpHeaders: Boolean = false,
                   var decoratorName: String = "",
-                  var entries: EntryListSetting = new EntryListSetting(null))
+                  var entries: List[TargetEntry] = List[TargetEntry]())
 //  {
 //    override def toString() = s"CacheTarget name: ${name}, delay: ${minSimDelay}, url: ${url}, entries: ${entries}"
 //  }
@@ -111,7 +111,8 @@ object Cache {
           case Some(te) => te.key
           case None => ""
         }
-        cacheTarget.entries.entries = new TargetEntry(key = targetEntryKey + pathRemainder, response = newResponse) :: cacheTarget.entries.entries
+        cacheTarget.entries = List[TargetEntry]()
+        cacheTarget.entries = new TargetEntry(key = targetEntryKey + pathRemainder, response = newResponse) :: Nil
       }
     }
   }
@@ -152,7 +153,7 @@ object Cache {
       case Some(cache: NamedCache) => {
         for {
           cacheTarget: CacheTarget <- cache
-          someEntry: Option[TargetEntry] <- (cacheTarget.entries.entries.map(te => Option(te))).::(None)
+          someEntry: Option[TargetEntry] <- (cacheTarget.entries.map(te => Option(te))).::(None)
           if method == "*" || someEntry == None || (someEntry match {
             case Some(entry) => entry.method == method
             case otherwise => false
@@ -197,22 +198,10 @@ object Cache {
     }
     def updateTargetEntry(targetEntry: TargetEntry, method: Option[String], reqHeader: Option[String],
                           rspHeader: Option[String]
-//                          , response: Option[String]
                            ): Unit = {
       method match {case Some(fldVal) => targetEntry.method = fldVal;  case otherwise => }
       reqHeader match {case Some(fldVal) => targetEntry.reqHeader = fldVal; case otherwise => }
       rspHeader match {case Some(fldVal) => targetEntry.rspHeader = fldVal; case otherwise => }
-//      response match {
-//        case Some(fldVal) => {
-//          import org.json4s._
-//          import org.json4s.jackson.JsonMethods._
-//          try {
-//            targetEntry.response = parse(fldVal)
-//            Right(targetEntry)
-//          } catch {
-//            case ioe: Exception => Left(InvalidValue)
-//          }
-//        }}
     }//
     println(s"in update field url  ${url}")
 
@@ -276,7 +265,7 @@ object Cache {
             case JField("skipHttpHeaders", JBool(name)) => newCacheTarget.skipHttpHeaders = name
             case JField("decoratorName", JString(name)) => newCacheTarget.decoratorName = name
             case JField("entries", JArray(entryFields)) => {
-              newCacheTarget.entries = new EntryListSetting(
+              newCacheTarget.entries = /*new List[TargetEntry](*/
                 for {JObject(entry) <- entryFields
                 } yield {
                   var targetEntry = new TargetEntry()
@@ -293,7 +282,7 @@ object Cache {
                       case unmatched => println(s"${unmatched} does not match any entry (key - response")
                     }
                   targetEntry
-                })
+                }
             }
             case unmatched => println(s"${unmatched} does not match any json target entry (name - entries: ")
           }
