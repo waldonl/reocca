@@ -111,14 +111,17 @@ object Cache {
           case Some(te) => te.key
           case None => ""
         }
-        cacheTarget.entries = List[TargetEntry]()
-        cacheTarget.entries = new TargetEntry(key = targetEntryKey + pathRemainder, response = newResponse) :: Nil
+//        cacheTarget.entries = List[TargetEntry]()
+        cacheTarget.entries = new TargetEntry(key = targetEntryKey + pathRemainder, response = newResponse) :: cacheTarget.entries
       }
     }
   }
 
   def put(eventualResponse: Future[HttpResponse], pathEntry: (Option[TargetEntry], CacheTarget)) = {
     responseMap.put(eventualResponse, pathEntry)
+  }
+  def get(eventualResponse: Future[HttpResponse]) = {
+    responseMap.get(eventualResponse)
   }
 
   def remove(eventualResponse: Future[HttpResponse]): Unit = {

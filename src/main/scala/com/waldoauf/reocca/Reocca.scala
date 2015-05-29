@@ -152,15 +152,15 @@ trait Reocca extends FormRoute  {
         Cache.put(eventualResponse, (targetEntry, cacheTarget))
         eventualResponse onComplete {
           case util.Success(hr: HttpResponse) => {
-            println("@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded replaceable response received")
             val jrsp = hr.entity.data.asString
-            if (cacheTarget.record) {
-              println(s"we will update the response to ${jrsp}")
-              import org.json4s._
-              import org.json4s.jackson.JsonMethods._
-              Cache.updateResponse(eventualResponse, parse(jrsp))
-              route = buildRoute()
-            }
+            println("@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded replaceable response received")
+                if (cacheTarget.record) {
+                  println(s"we will update the response to ${jrsp}")
+                  import org.json4s._
+                  import org.json4s.jackson.JsonMethods._
+                  Cache.updateResponse(eventualResponse, parse(jrsp))
+                  route = buildRoute()
+                }
           }
           case util.Success(somethingElse) =>  {
             println(s"we got something else: ${somethingElse}")
@@ -185,7 +185,7 @@ trait Reocca extends FormRoute  {
             println(s"@@@@@@@@@@@@@@@@@@@@@@@@@@  forwarded appendable response received ${cacheTarget.name}= =${if (targetEntry.isDefined) targetEntry.get.keySegment}= =${pathRemainder}")
             val jrsp = hr.entity.data.asString
             if (cacheTarget.record) {
-              //              println(s"we will update the response to ${jrsp} with remaining key ${pathRemainder.}")
+              println(s"we will append the response: ${jrsp} with remaining key ${pathRemainder}")
               import org.json4s._
               import org.json4s.jackson.JsonMethods._
               Cache.appendResponse(eventualResponse, pathRemainder, parse(jrsp))
