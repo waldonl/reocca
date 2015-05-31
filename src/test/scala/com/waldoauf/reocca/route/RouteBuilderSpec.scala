@@ -45,7 +45,13 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
             "skipHttpHeaders" : true,
             "entries" : [
              {    "key" : "inprogress",
-                  "method" : "get", "requestHeader" : "tbd", "responseHeader" : "tbd",
+                  "method" : "get", "keyRequestHeader" : [
+                    {"Accept" :"aaa/bbbb,ccc"},
+                    {"Accept" :"aaa/bbb,ccc,version=1.1"}
+                   ],
+                  "keyRequestHeader" : [
+                    {"Accept" : "just for the fun"}
+                  ], "responseHeader" : [],
                   "response" : {"objective" : "get this working"}
              },
              {    "key" : "replay/forward",
@@ -76,11 +82,11 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
             "decoratorName" : "default",
             "entries" :   [
                    {   "key" : "",
-                        "method" : "put", "requestHeader" : "tbd", "responseHeader" : "tbd",
+                        "method" : "put", "requestHeader" : [], "responseHeader" : [],
                         "response" : {"objective" : "put to work"}
                    },
                    {   "key" : "",
-                        "method" : "get", "requestHeader" : "tbd", "responseHeader" : "tbd",
+                        "method" : "get", "requestHeader" : [], "responseHeader" : [],
                         "response" : {"objective" : "get this working too"}
                    }
                           ]
@@ -96,15 +102,15 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
             "decoratorName" : "default",
             "entries" : [
                    {   "key" : "",
-                        "method" : "put", "requestHeader" : "tbd", "responseHeader" : "tbd",
+                        "method" : "put", "requestHeader" : [], "responseHeader" : [],
                         "response" : {"objective" : "put to work"}
                    },
                    {   "key" : "",
-                        "method" : "get", "requestHeader" : "tbd", "responseHeader" : "tbd",
+                        "method" : "get", "requestHeader" : [], "responseHeader" : [],
                         "response" : {"objective" : "get this working too"}
                    },
                    {   "key" : "",
-                        "method" : "post", "requestHeader" : "tbd", "responseHeader" : "tbd",
+                        "method" : "post", "requestHeader" : [], "responseHeader" : [],
                         "response" : {"id" : "42"}
                    }
                     ]
@@ -165,7 +171,7 @@ class RouteBuilderSpec extends Specification with Specs2RouteTest with Reocca {
       }
     }
     """Post of a field and value results in a field update """ in {
-      Post("/REOCCA/test/todos/urgent/inprogress", FormData(Seq("replay" -> "true", "url" -> "4242"))) ~> testRoute ~> check {
+      Post("/REOCCA/test/todos/urgent/inprogress", FormData(Seq("replay" -> "true", "url" -> """42<"aa">"""))) ~> testRoute ~> check {
         status === StatusCodes.OK
       }
     }

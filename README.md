@@ -38,7 +38,16 @@ Here is an example of a cache to post:
             "skipHttpHeaders" : true,
             "entries" : [
              {    "key" : "",
-                  "method" : "get", "requestHeader" : "tbd", "responseHeader" : "tbd",
+                  "method" : "get", 
+                  "keyRequestHeader" : [
+                        {   "Content-Type" : "application/json"},
+                        {   "Accept-encoding" : "UTF-8"}
+                  ],
+                  "requestHeader" : [                {"Accept":"*/*"}
+                  ],
+                  "responseHeader" : [
+                        {   "Content-Type" : "application/json"},
+                  ],
                   "response" : {"objective" : "this is just a simple task"}
              },
              {    "key" : "inprogress",

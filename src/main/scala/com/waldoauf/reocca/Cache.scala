@@ -17,11 +17,12 @@ import scala.concurrent.Future
 sealed trait UpdateCacheError {def responseStatus : StatusCode}
   case object UnknownField extends UpdateCacheError {val responseStatus = StatusCodes.NotFound}
   case object InvalidValue extends UpdateCacheError {val responseStatus = StatusCodes.Conflict}
-
+class HttpHeader(val name: String, val value: String)
 class TargetEntry(var key: String = "",
                   var method: String = "get",
-                  var reqHeader: String = "",
-                  var rspHeader: String = "",
+                  var keyReqHeaders: List[HttpHeader] = List(),
+                  var reqHeaders: List[HttpHeader] = List(),
+                  var rspHeaders: List[HttpHeader] = List(),
                   var response: JValue = JString("undefined")) {
   override def toString() = s"targetEntry (key: ${key}, method: ${method}},response: ${response})"
   lazy val keyPath = {
@@ -51,9 +52,9 @@ class TargetEntry(var key: String = "",
 }
 
 
-class EntryListSetting(var entries: List[TargetEntry]) {
-  override def toString() = s"cache entries: ${entries}"
-}
+//class EntryListSetting(var entries: List[TargetEntry]) {
+//  override def toString() = s"cache entries: ${entries}"
+//}
 
 case class CacheTarget(var name: String = "",
                   var replay: Boolean = true,
@@ -68,9 +69,6 @@ case class CacheTarget(var name: String = "",
                   var skipHttpHeaders: Boolean = false,
                   var decoratorName: String = "",
                   var entries: List[TargetEntry] = List[TargetEntry]())
-//  {
-//    override def toString() = s"CacheTarget name: ${name}, delay: ${minSimDelay}, url: ${url}, entries: ${entries}"
-//  }
 
 object Cache {
   def lexicalSorter(a: String, b: String): Boolean = {
@@ -111,7 +109,6 @@ object Cache {
           case Some(te) => te.key
           case None => ""
         }
-//        cacheTarget.entries = List[TargetEntry]()
         cacheTarget.entries = new TargetEntry(key = targetEntryKey + pathRemainder, response = newResponse) :: cacheTarget.entries
       }
     }
@@ -203,8 +200,11 @@ object Cache {
                           rspHeader: Option[String]
                            ): Unit = {
       method match {case Some(fldVal) => targetEntry.method = fldVal;  case otherwise => }
-      reqHeader match {case Some(fldVal) => targetEntry.reqHeader = fldVal; case otherwise => }
-      rspHeader match {case Some(fldVal) => targetEntry.rspHeader = fldVal; case otherwise => }
+      // for now disable the ability to update a header
+      // a header is no longer a single simple fieldvalue, but an array of field values
+      // this is best updated in a separate API
+//      reqHeader match {case Some(fldVal) => targetEntry.reqHeader = fldVal; case otherwise => }
+//      rspHeader match {case Some(fldVal) => targetEntry.rspHeader = fldVal; case otherwise => }
     }//
     println(s"in update field url  ${url}")
 
@@ -242,7 +242,14 @@ object Cache {
      case None => Left(UnknownField)
     }
   }
-
+  def parseHttpHeaders(jHttpHeaderObjects: List[JValue]) : List[HttpHeader] = {
+    println(s"parsing header: ${jHttpHeaderObjects}")
+    for {JObject(jFieldList) <- jHttpHeaderObjects
+      JField(name, JString(hdrValue)) <- jFieldList
+    } yield {
+      new HttpHeader(name, hdrValue)
+    }
+  }
   def putCache(name: String, jCache: JValue) = {
     val cacheTargetList = for {
       JArray(targetList) <- jCache
@@ -268,7 +275,7 @@ object Cache {
             case JField("skipHttpHeaders", JBool(name)) => newCacheTarget.skipHttpHeaders = name
             case JField("decoratorName", JString(name)) => newCacheTarget.decoratorName = name
             case JField("entries", JArray(entryFields)) => {
-              newCacheTarget.entries = /*new List[TargetEntry](*/
+              newCacheTarget.entries =
                 for {JObject(entry) <- entryFields
                 } yield {
                   var targetEntry = new TargetEntry()
@@ -277,8 +284,15 @@ object Cache {
                     entryField match {
                       case JField("key", JString(key)) => targetEntry.key = key
                       case JField("method", JString(key)) => targetEntry.method = key
-                      case JField("requestHeader", JString(key)) => targetEntry.reqHeader = key
-                      case JField("responseHeader", JString(key)) => targetEntry.rspHeader = key
+                      case JField("keyRequestHeader", JArray(hdrs)) => {
+                        targetEntry.keyReqHeaders = parseHttpHeaders(hdrs)
+                      }
+                      case JField("requestHeader", JArray(hdrs)) => {
+                        targetEntry.reqHeaders = parseHttpHeaders(hdrs)
+                      }
+                      case JField("responseHeader", JArray(hdrs)) => {
+                        targetEntry.rspHeaders = parseHttpHeaders(hdrs)
+                      }
                       case JField("response", response) => {
                         targetEntry.response = response; println(s"set response of ${targetEntry} to ${response}")
                       }
